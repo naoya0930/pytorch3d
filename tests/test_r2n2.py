@@ -1,9 +1,4 @@
-# Copyright (c) Facebook, Inc. and its affiliates.
-# All rights reserved.
-#
-# This source code is licensed under the BSD-style license found in the
-# LICENSE file in the root directory of this source tree.
-
+# Copyright (c) Facebook, Inc. and its affiliates. All rights reserved.
 """
 Sanity checks for loading R2N2.
 """
@@ -29,7 +24,7 @@ from pytorch3d.renderer import (
 )
 from pytorch3d.renderer.cameras import get_world_to_view_transform
 from pytorch3d.transforms import Transform3d
-from pytorch3d.transforms.so3 import so3_exp_map
+from pytorch3d.transforms.so3 import so3_exponential_map
 from torch.utils.data import DataLoader
 
 
@@ -316,7 +311,7 @@ class TestR2N2(TestCaseMixin, unittest.TestCase):
         """
         # Test get_world_to_view_transform.
         T = torch.randn(10, 3)
-        R = so3_exp_map(torch.randn(10, 3) * 3.0)
+        R = so3_exponential_map(torch.randn(10, 3) * 3.0)
         RT = get_world_to_view_transform(R=R, T=T)
         cam = BlenderCamera(R=R, T=T)
         RT_class = cam.get_world_to_view_transform()

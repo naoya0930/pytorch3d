@@ -1,15 +1,9 @@
-# Copyright (c) Facebook, Inc. and its affiliates.
-# All rights reserved.
-#
-# This source code is licensed under the BSD-style license found in the
-# LICENSE file in the root directory of this source tree.
-
+# Copyright (c) Facebook, Inc. and its affiliates. All rights reserved.
 import math
 from typing import Dict, List
 
 import numpy as np
 import torch
-from pytorch3d.common.types import Device
 from pytorch3d.datasets.utils import collate_batched_meshes
 from pytorch3d.ops import cubify
 from pytorch3d.renderer import (
@@ -25,11 +19,11 @@ from pytorch3d.transforms import Transform3d
 
 
 # Empirical min and max over the dataset from meshrcnn.
-# https://github.com/facebookresearch/meshrcnn/blob/main/shapenet/utils/coords.py#L9
+# https://github.com/facebookresearch/meshrcnn/blob/master/shapenet/utils/coords.py#L9
 SHAPENET_MIN_ZMIN = 0.67
 SHAPENET_MAX_ZMAX = 0.92
 # Threshold for cubify from meshrcnn:
-# https://github.com/facebookresearch/meshrcnn/blob/main/configs/shapenet/voxmesh_R50.yaml#L11
+# https://github.com/facebookresearch/meshrcnn/blob/master/configs/shapenet/voxmesh_R50.yaml#L11
 CUBIFY_THRESH = 0.2
 
 # Default values of rotation, translation and intrinsic matrices for BlenderCamera.
@@ -38,7 +32,7 @@ t = np.expand_dims(np.zeros(3), axis=0)  # (1, 3)
 k = np.expand_dims(np.eye(4), axis=0)  # (1, 4, 4)
 
 
-def collate_batched_R2N2(batch: List[Dict]):  # pragma: no cover
+def collate_batched_R2N2(batch: List[Dict]):
     """
     Take a list of objects in the form of dictionaries and merge them
     into a single dictionary. This function can be used with a Dataset
@@ -98,10 +92,10 @@ def collate_batched_R2N2(batch: List[Dict]):  # pragma: no cover
     return collated_dict
 
 
-def compute_extrinsic_matrix(azimuth, elevation, distance):  # pragma: no cover
+def compute_extrinsic_matrix(azimuth, elevation, distance):
     """
     Copied from meshrcnn codebase:
-    https://github.com/facebookresearch/meshrcnn/blob/main/shapenet/utils/coords.py#L96
+    https://github.com/facebookresearch/meshrcnn/blob/master/shapenet/utils/coords.py#L96
 
     Compute 4x4 extrinsic matrix that converts from homogeneous world coordinates
     to homogeneous camera coordinates. We assume that the camera is looking at the
@@ -143,14 +137,10 @@ def compute_extrinsic_matrix(azimuth, elevation, distance):  # pragma: no cover
     return RT
 
 
-def read_binvox_coords(
-    f,
-    integer_division: bool = True,
-    dtype: torch.dtype = torch.float32,
-):  # pragma: no cover
+def read_binvox_coords(f, integer_division=True, dtype=torch.float32):
     """
     Copied from meshrcnn codebase:
-    https://github.com/facebookresearch/meshrcnn/blob/main/shapenet/utils/binvox_torch.py#L5
+    https://github.com/facebookresearch/meshrcnn/blob/master/shapenet/utils/binvox_torch.py#L5
 
     Read a binvox file and return the indices of all nonzero voxels.
 
@@ -190,10 +180,10 @@ def read_binvox_coords(
     return coords.to(dtype)
 
 
-def _compute_idxs(vals, counts):  # pragma: no cover
+def _compute_idxs(vals, counts):
     """
     Copied from meshrcnn codebase:
-    https://github.com/facebookresearch/meshrcnn/blob/main/shapenet/utils/binvox_torch.py#L58
+    https://github.com/facebookresearch/meshrcnn/blob/master/shapenet/utils/binvox_torch.py#L58
 
     Fast vectorized version of index computation.
 
@@ -243,10 +233,10 @@ def _compute_idxs(vals, counts):  # pragma: no cover
     return idxs
 
 
-def _read_binvox_header(f):  # pragma: no cover
+def _read_binvox_header(f):
     """
     Copied from meshrcnn codebase:
-    https://github.com/facebookresearch/meshrcnn/blob/main/shapenet/utils/binvox_torch.py#L99
+    https://github.com/facebookresearch/meshrcnn/blob/master/shapenet/utils/binvox_torch.py#L99
 
     Read binvox header and extract information regarding voxel sizes and translations
     to original voxel coordinates.
@@ -307,10 +297,10 @@ def _read_binvox_header(f):  # pragma: no cover
     return size, translation, scale
 
 
-def align_bbox(src, tgt):  # pragma: no cover
+def align_bbox(src, tgt):
     """
     Copied from meshrcnn codebase:
-    https://github.com/facebookresearch/meshrcnn/blob/main/tools/preprocess_shapenet.py#L263
+    https://github.com/facebookresearch/meshrcnn/blob/master/tools/preprocess_shapenet.py#L263
 
     Return a copy of src points in the coordinate system of tgt by applying a
     scale and shift along each coordinate axis to make the min / max values align.
@@ -337,10 +327,10 @@ def align_bbox(src, tgt):  # pragma: no cover
     return out
 
 
-def voxelize(voxel_coords, P, V):  # pragma: no cover
+def voxelize(voxel_coords, P, V):
     """
     Copied from meshrcnn codebase:
-    https://github.com/facebookresearch/meshrcnn/blob/main/tools/preprocess_shapenet.py#L284
+    https://github.com/facebookresearch/meshrcnn/blob/master/tools/preprocess_shapenet.py#L284
     but changing flip y to flip x.
 
     Creating voxels of shape (D, D, D) from voxel_coords and projection matrix.
@@ -384,10 +374,10 @@ def voxelize(voxel_coords, P, V):  # pragma: no cover
     return voxels
 
 
-def project_verts(verts, P, eps=1e-1):  # pragma: no cover
+def project_verts(verts, P, eps=1e-1):
     """
     Copied from meshrcnn codebase:
-    https://github.com/facebookresearch/meshrcnn/blob/main/shapenet/utils/coords.py#L159
+    https://github.com/facebookresearch/meshrcnn/blob/master/shapenet/utils/coords.py#L159
 
     Project vertices using a 4x4 transformation matrix.
 
@@ -433,19 +423,19 @@ def project_verts(verts, P, eps=1e-1):  # pragma: no cover
     return verts_proj
 
 
-class BlenderCamera(CamerasBase):  # pragma: no cover
+class BlenderCamera(CamerasBase):
     """
     Camera for rendering objects with calibration matrices from the R2N2 dataset
     (which uses Blender for rendering the views for each model).
     """
 
-    def __init__(self, R=r, T=t, K=k, device: Device = "cpu") -> None:
+    def __init__(self, R=r, T=t, K=k, device="cpu"):
         """
         Args:
             R: Rotation matrix of shape (N, 3, 3).
             T: Translation matrix of shape (N, 3).
             K: Intrinsic matrix of shape (N, 4, 4).
-            device: Device (as str or torch.device).
+            device: torch.device or str.
         """
         # The initializer formats all inputs to torch tensors and broadcasts
         # all the inputs to have the same batch dimension where necessary.
@@ -453,13 +443,13 @@ class BlenderCamera(CamerasBase):  # pragma: no cover
 
     def get_projection_transform(self, **kwargs) -> Transform3d:
         transform = Transform3d(device=self.device)
-        transform._matrix = self.K.transpose(1, 2).contiguous()
+        transform._matrix = self.K.transpose(1, 2).contiguous()  # pyre-ignore[16]
         return transform
 
 
 def render_cubified_voxels(
-    voxels: torch.Tensor, shader_type=HardPhongShader, device: Device = "cpu", **kwargs
-):  # pragma: no cover
+    voxels: torch.Tensor, shader_type=HardPhongShader, device="cpu", **kwargs
+):
     """
     Use the Cubify operator to convert inputs voxels to a mesh and then render that mesh.
 
@@ -469,7 +459,7 @@ def render_cubified_voxels(
         shader_type: shader_type: shader_type: Shader to use for rendering. Examples
             include HardPhongShader (default), SoftPhongShader etc or any other type
             of valid Shader class.
-        device: Device (as str or torch.device) on which the tensors should be located.
+        device: torch.device on which the tensors should be located.
         **kwargs: Accepts any of the kwargs that the renderer supports.
     Returns:
         Batch of rendered images of shape (N, H, W, 3).

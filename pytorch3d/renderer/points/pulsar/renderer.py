@@ -1,9 +1,4 @@
-# Copyright (c) Facebook, Inc. and its affiliates.
-# All rights reserved.
-#
-# This source code is licensed under the BSD-style license found in the
-# LICENSE file in the root directory of this source tree.
-
+# Copyright (c) Facebook, Inc. and its affiliates. All rights reserved.
 """pulsar renderer PyTorch integration.
 
 Proper Python support for pytorch requires creating a torch.autograd.function
@@ -16,7 +11,7 @@ import warnings
 from typing import Optional, Tuple, Union
 
 import torch
-from pytorch3d import _C
+from pytorch3d import _C  # pyre-fixme[21]: Could not find name `_C` in `pytorch3d`.
 from pytorch3d.transforms import axis_angle_to_matrix, rotation_6d_to_matrix
 
 
@@ -88,6 +83,7 @@ class _Render(torch.autograd.Function):
     """
 
     @staticmethod
+    # pyre-fixme[14]: `forward` overrides method defined in `Function` inconsistently.
     # pyre-fixme[14]: `forward` overrides method defined in `Function` inconsistently.
     def forward(
         ctx,
@@ -326,7 +322,7 @@ class Renderer(torch.nn.Module):
         background_normalized_depth: float = _C.EPS,
         n_channels: int = 3,
         n_track: int = 5,
-    ) -> None:
+    ):
         super(Renderer, self).__init__()
         # pyre-fixme[16]: Module `pytorch3d` has no attribute `_C`.
         self._renderer = _C.PulsarRenderer(
@@ -636,6 +632,7 @@ class Renderer(torch.nn.Module):
                     enabled.
         """
         # The device tracker is registered as buffer.
+        # pyre-fixme[16]: `Renderer` has no attribute `device_tracker`.
         self._renderer.device_tracker = self.device_tracker
         (
             pos_vec,

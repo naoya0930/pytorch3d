@@ -1,13 +1,8 @@
-# Copyright (c) Facebook, Inc. and its affiliates.
-# All rights reserved.
-#
-# This source code is licensed under the BSD-style license found in the
-# LICENSE file in the root directory of this source tree.
+# Copyright (c) Facebook, Inc. and its affiliates. All rights reserved.
 
 
 import torch
 
-from ..common.types import Device
 from .utils import TensorProperties
 
 
@@ -23,8 +18,8 @@ class Materials(TensorProperties):
         diffuse_color=((1, 1, 1),),
         specular_color=((1, 1, 1),),
         shininess=64,
-        device: Device = "cpu",
-    ) -> None:
+        device="cpu",
+    ):
         """
         Args:
             ambient_color: RGB ambient reflectivity of the material
@@ -34,7 +29,7 @@ class Materials(TensorProperties):
                 the focus of the specular highlight with a high value
                 resulting in a concentrated highlight. Shininess values
                 can range from 0-1000.
-            device: Device (as str or torch.device) on which the tensors should be located
+            device: torch.device or string
 
         ambient_color, diffuse_color and specular_color can be of shape
         (1, 3) or (N, 3). shininess can be of shape (1) or (N).

@@ -1,9 +1,5 @@
 #!/bin/bash -e
-# Copyright (c) Facebook, Inc. and its affiliates.
-# All rights reserved.
-#
-# This source code is licensed under the BSD-style license found in the
-# LICENSE file in the root directory of this source tree.
+# Copyright (c) Facebook, Inc. and its affiliates. All rights reserved.
 
 # Run this script before committing config.yml to verify it is valid yaml.
 

@@ -1,14 +1,9 @@
-# Copyright (c) Facebook, Inc. and its affiliates.
-# All rights reserved.
-#
-# This source code is licensed under the BSD-style license found in the
-# LICENSE file in the root directory of this source tree.
+# Copyright (c) Facebook, Inc. and its affiliates. All rights reserved.
 
 import warnings
 from typing import Dict, List, Optional, Tuple
 
 import torch
-from pytorch3d.common.types import Device
 from pytorch3d.io import load_obj
 from pytorch3d.renderer import (
     FoVPerspectiveCameras,
@@ -23,14 +18,14 @@ from pytorch3d.renderer import (
 from .utils import collate_batched_meshes
 
 
-class ShapeNetBase(torch.utils.data.Dataset):  # pragma: no cover
+class ShapeNetBase(torch.utils.data.Dataset):
     """
     'ShapeNetBase' implements a base Dataset for ShapeNet and R2N2 with helper methods.
     It is not intended to be used on its own as a Dataset for a Dataloader. Both __init__
     and __getitem__ need to be implemented.
     """
 
-    def __init__(self) -> None:
+    def __init__(self):
         """
         Set up lists of synset_ids and model_ids.
         """
@@ -44,7 +39,7 @@ class ShapeNetBase(torch.utils.data.Dataset):  # pragma: no cover
         self.load_textures = True
         self.texture_resolution = 4
 
-    def __len__(self) -> int:
+    def __len__(self):
         """
         Return number of total models in the loaded dataset.
         """
@@ -100,8 +95,6 @@ class ShapeNetBase(torch.utils.data.Dataset):  # pragma: no cover
                     self.texture_resolution,
                     3,
                 )
-        else:
-            textures = None
 
         return verts, faces.verts_idx, textures
 
@@ -112,7 +105,7 @@ class ShapeNetBase(torch.utils.data.Dataset):  # pragma: no cover
         sample_nums: Optional[List[int]] = None,
         idxs: Optional[List[int]] = None,
         shader_type=HardPhongShader,
-        device: Device = "cpu",
+        device="cpu",
         **kwargs
     ) -> torch.Tensor:
         """
@@ -136,7 +129,7 @@ class ShapeNetBase(torch.utils.data.Dataset):  # pragma: no cover
             shader_type: Select shading. Valid options include HardPhongShader (default),
                 SoftPhongShader, HardGouraudShader, SoftGouraudShader, HardFlatShader,
                 SoftSilhouetteShader.
-            device: Device (as str or torch.device) on which the tensors should be located.
+            device: torch.device on which the tensors should be located.
             **kwargs: Accepts any of the kwargs that the renderer supports.
 
         Returns:

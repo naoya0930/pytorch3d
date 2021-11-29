@@ -1,9 +1,4 @@
-# Copyright (c) Facebook, Inc. and its affiliates.
-# All rights reserved.
-#
-# This source code is licensed under the BSD-style license found in the
-# LICENSE file in the root directory of this source tree.
-
+# Copyright (c) Facebook, Inc. and its affiliates. All rights reserved.
 import torch
 
 from ..cameras import CamerasBase
@@ -66,7 +61,7 @@ class GridRaysampler(torch.nn.Module):
         n_pts_per_ray: int,
         min_depth: float,
         max_depth: float,
-    ) -> None:
+    ):
         """
         Args:
             min_x: The leftmost x-coordinate of each ray's source pixel's center.
@@ -96,7 +91,7 @@ class GridRaysampler(torch.nn.Module):
             ),
             dim=-1,
         )
-        self.register_buffer("_xy_grid", _xy_grid, persistent=False)
+        self.register_buffer("_xy_grid", _xy_grid)
 
     def forward(self, cameras: CamerasBase, **kwargs) -> RayBundle:
         """
@@ -118,12 +113,12 @@ class GridRaysampler(torch.nn.Module):
                 containing the 2D image coordinates of each ray.
         """
 
-        batch_size = cameras.R.shape[0]
+        batch_size = cameras.R.shape[0]  # pyre-ignore
 
         device = cameras.device
 
         # expand the (H, W, 2) grid batch_size-times to (B, H, W, 2)
-        xy_grid = self._xy_grid.to(device)[None].expand(
+        xy_grid = self._xy_grid.to(device)[None].expand(  # pyre-ignore
             batch_size, *self._xy_grid.shape
         )
 
@@ -139,8 +134,8 @@ class NDCGridRaysampler(GridRaysampler):
     have uniformly-spaced z-coordinates between a predefined minimum and maximum depth.
 
     `NDCGridRaysampler` follows the screen conventions of the `Meshes` and `Pointclouds`
-    renderers. I.e. the pixel coordinates are in [-1, 1]x[-u, u] or [-u, u]x[-1, 1]
-    where u > 1 is the aspect ratio of the image.
+    renderers. I.e. the border of the leftmost / rightmost / topmost / bottommost pixel
+    has coordinates 1.0 / -1.0 / 1.0 / -1.0 respectively.
     """
 
     def __init__(
@@ -150,7 +145,7 @@ class NDCGridRaysampler(GridRaysampler):
         n_pts_per_ray: int,
         min_depth: float,
         max_depth: float,
-    ) -> None:
+    ):
         """
         Args:
             image_width: The horizontal size of the image grid.
@@ -159,20 +154,13 @@ class NDCGridRaysampler(GridRaysampler):
             min_depth: The minimum depth of a ray-point.
             max_depth: The maximum depth of a ray-point.
         """
-        if image_width >= image_height:
-            range_x = image_width / image_height
-            range_y = 1.0
-        else:
-            range_x = 1.0
-            range_y = image_height / image_width
-
-        half_pix_width = range_x / image_width
-        half_pix_height = range_y / image_height
+        half_pix_width = 1.0 / image_width
+        half_pix_height = 1.0 / image_height
         super().__init__(
-            min_x=range_x - half_pix_width,
-            max_x=-range_x + half_pix_width,
-            min_y=range_y - half_pix_height,
-            max_y=-range_y + half_pix_height,
+            min_x=1.0 - half_pix_width,
+            max_x=-1.0 + half_pix_width,
+            min_y=1.0 - half_pix_height,
+            max_y=-1.0 + half_pix_height,
             image_width=image_width,
             image_height=image_height,
             n_pts_per_ray=n_pts_per_ray,
@@ -199,7 +187,7 @@ class MonteCarloRaysampler(torch.nn.Module):
         n_pts_per_ray: int,
         min_depth: float,
         max_depth: float,
-    ) -> None:
+    ):
         """
         Args:
             min_x: The smallest x-coordinate of each ray's source pixel.
@@ -241,7 +229,7 @@ class MonteCarloRaysampler(torch.nn.Module):
                 containing the 2D image coordinates of each ray.
         """
 
-        batch_size = cameras.R.shape[0]
+        batch_size = cameras.R.shape[0]  # pyre-ignore
 
         device = cameras.device
 
@@ -302,7 +290,7 @@ def _xy_to_ray_bundle(
             .reshape(batch_size, n_rays_per_image * 2, 2),
             torch.cat(
                 (
-                    xy_grid.new_ones(batch_size, n_rays_per_image, 1),
+                    xy_grid.new_ones(batch_size, n_rays_per_image, 1),  # pyre-ignore
                     2.0 * xy_grid.new_ones(batch_size, n_rays_per_image, 1),
                 ),
                 dim=1,

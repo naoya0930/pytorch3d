@@ -1,10 +1,4 @@
-/*
- * Copyright (c) Facebook, Inc. and its affiliates.
- * All rights reserved.
- *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree.
- */
+// Copyright (c) Facebook, Inc. and its affiliates. All rights reserved.
 
 #include <torch/extension.h>
 #include <algorithm>
@@ -116,6 +110,13 @@ struct IsNeighbor {
   }
   int neighbor_idx;
 };
+
+// Function to sort based on the z distance in the top K queue
+bool SortTopKByZdist(
+    std::tuple<float, int, float, float, float, float> a,
+    std::tuple<float, int, float, float, float, float> b) {
+  return std::get<0>(a) < std::get<0>(b);
+}
 
 std::tuple<torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor>
 RasterizeMeshesNaiveCpu(
@@ -303,7 +304,7 @@ RasterizeMeshesNaiveCpu(
 
           // Sort the deque inplace based on the z distance
           // to mimic using a priority queue.
-          std::sort(q.begin(), q.end());
+          std::sort(q.begin(), q.end(), SortTopKByZdist);
           if (static_cast<int>(q.size()) > K) {
             // remove the last value
             q.pop_back();

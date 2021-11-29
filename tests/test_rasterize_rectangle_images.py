@@ -1,8 +1,4 @@
-# Copyright (c) Facebook, Inc. and its affiliates.
-# All rights reserved.
-#
-# This source code is licensed under the BSD-style license found in the
-# LICENSE file in the root directory of this source tree.
+# Copyright (c) Facebook, Inc. and its affiliates. All rights reserved.
 
 import unittest
 from itertools import product
@@ -322,7 +318,7 @@ class TestRasterizeRectangleImagesMeshes(TestCaseMixin, unittest.TestCase):
 
             # Finally check the gradients of the input vertices for
             # the square and non square case
-            self.assertClose(verts_square.grad, grad_tensor.grad, rtol=3e-4, atol=5e-3)
+            self.assertClose(verts_square.grad, grad_tensor.grad, rtol=3e-4)
 
     def test_gpu(self):
         """

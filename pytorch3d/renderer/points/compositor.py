@@ -1,8 +1,4 @@
-# Copyright (c) Facebook, Inc. and its affiliates.
-# All rights reserved.
-#
-# This source code is licensed under the BSD-style license found in the
-# LICENSE file in the root directory of this source tree.
+# Copyright (c) Facebook, Inc. and its affiliates. All rights reserved.
 
 import warnings
 from typing import List, Optional, Tuple, Union
@@ -25,7 +21,7 @@ class AlphaCompositor(nn.Module):
 
     def __init__(
         self, background_color: Optional[Union[Tuple, List, torch.Tensor]] = None
-    ) -> None:
+    ):
         super().__init__()
         self.background_color = background_color
 
@@ -47,7 +43,7 @@ class NormWeightedCompositor(nn.Module):
 
     def __init__(
         self, background_color: Optional[Union[Tuple, List, torch.Tensor]] = None
-    ) -> None:
+    ):
         super().__init__()
         self.background_color = background_color
 

@@ -1,16 +1,9 @@
-/*
- * Copyright (c) Facebook, Inc. and its affiliates.
- * All rights reserved.
- *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree.
- */
+// Copyright (c) Facebook, Inc. and its affiliates. All rights reserved.
 
 #pragma once
 #include <torch/extension.h>
 #include <cstdio>
 #include <tuple>
-#include "rasterize_coarse/rasterize_coarse.h"
 #include "utils/pytorch3d_cutils.h"
 
 // ****************************************************************************
@@ -75,11 +68,6 @@ RasterizeMeshesNaiveCuda(
 //                         coordinates for each pixel; if this is False then
 //                         this function instead returns screen-space
 //                         barycentric coordinates for each pixel.
-//    clip_barycentric_coords: Whether, after any perspective correction
-//          is applied but before the depth is calculated (e.g. for
-//          z clipping), to "correct" a location outside the face (i.e. with
-//          a negative barycentric coordinate) to a position on the edge of the
-//          face.
 //    cull_backfaces: Bool, Whether to only rasterize mesh faces which are
 //                    visible to the camera.  This assumes that vertices of
 //                    front-facing triangles are ordered in an anti-clockwise
@@ -196,11 +184,6 @@ torch::Tensor RasterizeMeshesBackwardCuda(
 //                         coordinates for each pixel; if this is False then
 //                         this function instead returns screen-space
 //                         barycentric coordinates for each pixel.
-//    clip_barycentric_coords: Whether, after any perspective correction
-//          is applied but before the depth is calculated (e.g. for
-//          z clipping), to "correct" a location outside the face (i.e. with
-//          a negative barycentric coordinate) to a position on the edge of the
-//          face.
 //
 // Returns:
 //    grad_face_verts: float32 Tensor of shape (F, 3, 3) giving downstream
@@ -247,8 +230,6 @@ torch::Tensor RasterizeMeshesBackward(
 // *                          COARSE RASTERIZATION                            *
 // ****************************************************************************
 
-// RasterizeMeshesCoarseCuda in rasterize_coarse/rasterize_coarse.h
-
 torch::Tensor RasterizeMeshesCoarseCpu(
     const torch::Tensor& face_verts,
     const at::Tensor& mesh_to_face_first_idx,
@@ -258,6 +239,16 @@ torch::Tensor RasterizeMeshesCoarseCpu(
     const int bin_size,
     const int max_faces_per_bin);
 
+#ifdef WITH_CUDA
+torch::Tensor RasterizeMeshesCoarseCuda(
+    const torch::Tensor& face_verts,
+    const torch::Tensor& mesh_to_face_first_idx,
+    const torch::Tensor& num_faces_per_mesh,
+    const std::tuple<int, int> image_size,
+    const float blur_radius,
+    const int bin_size,
+    const int max_faces_per_bin);
+#endif
 // Args:
 //    face_verts: Tensor of shape (F, 3, 3) giving (packed) vertex positions for
 //                faces in all the meshes in the batch. Concretely,
@@ -362,11 +353,6 @@ RasterizeMeshesFineCuda(
 //                         coordinates for each pixel; if this is False then
 //                         this function instead returns screen-space
 //                         barycentric coordinates for each pixel.
-//    clip_barycentric_coords: Whether, after any perspective correction
-//          is applied but before the depth is calculated (e.g. for
-//          z clipping), to "correct" a location outside the face (i.e. with
-//          a negative barycentric coordinate) to a position on the edge of the
-//          face.
 //    cull_backfaces: Bool, Whether to only rasterize mesh faces which are
 //                    visible to the camera.  This assumes that vertices of
 //                    front-facing triangles are ordered in an anti-clockwise
@@ -456,7 +442,6 @@ RasterizeMeshesFine(
 //    blur_radius: float distance in NDC coordinates uses to expand the face
 //                 bounding boxes for the rasterization. Set to 0.0 if no blur
 //                 is required.
-//    faces_per_pixel: the number of closeset faces to rasterize per pixel.
 //    bin_size: Bin size (in pixels) for coarse-to-fine rasterization. Setting
 //              bin_size=0 uses naive rasterization instead.
 //    max_faces_per_bin: The maximum number of faces allowed to fall into each
@@ -467,11 +452,6 @@ RasterizeMeshesFine(
 //                         coordinates for each pixel; if this is False then
 //                         this function instead returns screen-space
 //                         barycentric coordinates for each pixel.
-//    clip_barycentric_coords: Whether, after any perspective correction
-//          is applied but before the depth is calculated (e.g. for
-//          z clipping), to "correct" a location outside the face (i.e. with
-//          a negative barycentric coordinate) to a position on the edge of the
-//          face.
 //    cull_backfaces: Bool, Whether to only rasterize mesh faces which are
 //                    visible to the camera.  This assumes that vertices of
 //                    front-facing triangles are ordered in an anti-clockwise
@@ -513,7 +493,7 @@ RasterizeMeshes(
     const bool cull_backfaces) {
   if (bin_size > 0 && max_faces_per_bin > 0) {
     // Use coarse-to-fine rasterization
-    at::Tensor bin_faces = RasterizeMeshesCoarse(
+    auto bin_faces = RasterizeMeshesCoarse(
         face_verts,
         mesh_to_face_first_idx,
         num_faces_per_mesh,

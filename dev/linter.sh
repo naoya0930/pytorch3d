@@ -1,19 +1,12 @@
 #!/bin/bash -e
-# Copyright (c) Facebook, Inc. and its affiliates.
-# All rights reserved.
-#
-# This source code is licensed under the BSD-style license found in the
-# LICENSE file in the root directory of this source tree.
+# Copyright (c) Facebook, Inc. and its affiliates. All rights reserved.
 
 # Run this script at project root by "./dev/linter.sh" before you commit
 
 {
   V=$(black --version|cut '-d ' -f3)
   code='import distutils.version; assert "19.3" < distutils.version.LooseVersion("'$V'")'
-  PYTHON=false
-  command -v python > /dev/null && PYTHON=python
-  command -v python3 > /dev/null && PYTHON=python3
-  ${PYTHON} -c "${code}" 2> /dev/null
+  python -c "${code}" 2> /dev/null
 } || {
   echo "Linter requires black 19.3b0 or higher!"
   exit 1

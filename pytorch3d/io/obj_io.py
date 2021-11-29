@@ -1,8 +1,4 @@
-# Copyright (c) Facebook, Inc. and its affiliates.
-# All rights reserved.
-#
-# This source code is licensed under the BSD-style license found in the
-# LICENSE file in the root directory of this source tree.
+# Copyright (c) Facebook, Inc. and its affiliates. All rights reserved.
 
 
 """This module implements utility functions for loading and saving meshes."""
@@ -10,15 +6,13 @@ import os
 import warnings
 from collections import namedtuple
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Union
 
 import numpy as np
 import torch
 from iopath.common.file_io import PathManager
-from PIL import Image
-from pytorch3d.common.types import Device
 from pytorch3d.io.mtl_io import load_mtl, make_mesh_texture_atlas
-from pytorch3d.io.utils import PathOrStr, _check_faces_indices, _make_tensor, _open_file
+from pytorch3d.io.utils import _check_faces_indices, _make_tensor, _open_file
 from pytorch3d.renderer import TexturesAtlas, TexturesUV
 from pytorch3d.structures import Meshes, join_meshes_as_batch
 
@@ -77,7 +71,7 @@ def load_obj(
     create_texture_atlas: bool = False,
     texture_atlas_size: int = 4,
     texture_wrap: Optional[str] = "repeat",
-    device: Device = "cpu",
+    device="cpu",
     path_manager: Optional[PathManager] = None,
 ):
     """
@@ -149,7 +143,7 @@ def load_obj(
             is ignored and a repeating pattern is formed.
             If `texture_mode="clamp"` the values are clamped to the range [0, 1].
             If None, then there is no transformation of the texture values.
-        device: Device (as str or torch.device) on which to return the new tensors.
+        device: string or torch.device on which to return the new tensors.
         path_manager: optionally a PathManager object to interpret paths.
 
     Returns:
@@ -213,7 +207,11 @@ def load_obj(
               None.
     """
     data_dir = "./"
-    if isinstance(f, (str, bytes, Path)):
+    # pyre-fixme[6]: Expected `Union[typing.Type[typing.Any],
+    #  typing.Tuple[typing.Type[typing.Any], ...]]` for 2nd param but got `Any`.
+    if isinstance(f, (str, bytes, os.PathLike)):
+        # pyre-fixme[6]: Expected `_PathLike[Variable[typing.AnyStr <: [str,
+        #  bytes]]]` for 1st param but got `Union[_PathLike[typing.Any], bytes, str]`.
         data_dir = os.path.dirname(f)
     if path_manager is None:
         path_manager = PathManager()
@@ -232,7 +230,7 @@ def load_obj(
 
 def load_objs_as_meshes(
     files: list,
-    device: Optional[Device] = None,
+    device=None,
     load_textures: bool = True,
     create_texture_atlas: bool = False,
     texture_atlas_size: int = 4,
@@ -292,14 +290,14 @@ def load_objs_as_meshes(
 
 
 class MeshObjFormat(MeshFormatInterpreter):
-    def __init__(self) -> None:
+    def __init__(self):
         self.known_suffixes = (".obj",)
 
     def read(
         self,
-        path: PathOrStr,
+        path: Union[str, Path],
         include_textures: bool,
-        device: Device,
+        device,
         path_manager: PathManager,
         create_texture_atlas: bool = False,
         texture_atlas_size: int = 4,
@@ -322,7 +320,7 @@ class MeshObjFormat(MeshFormatInterpreter):
     def save(
         self,
         data: Meshes,
-        path: PathOrStr,
+        path: Union[str, Path],
         path_manager: PathManager,
         binary: Optional[bool],
         decimal_places: Optional[int] = None,
@@ -499,11 +497,11 @@ def _parse_obj(f, data_dir: str):
 
 def _load_materials(
     material_names: List[str],
-    f: Optional[str],
+    f,
     *,
     data_dir: str,
     load_textures: bool,
-    device: Device,
+    device,
     path_manager: PathManager,
 ):
     """
@@ -511,10 +509,10 @@ def _load_materials(
 
     Args:
         material_names: a list of the material names found in the .obj file.
-        f: path to the material information.
+        f: a file-like object of the material information.
         data_dir: the directory where the material texture files are located.
         load_textures: whether textures should be loaded.
-        device: Device (as str or torch.device) on which to return the new tensors.
+        device: string or torch.device on which to return the new tensors.
         path_manager: PathManager object to interpret paths.
 
     Returns:
@@ -529,7 +527,7 @@ def _load_materials(
             warnings.warn("No mtl file provided")
         return None, None
 
-    if not path_manager.exists(f):
+    if not os.path.isfile(f):
         warnings.warn(f"Mtl file does not exist: {f}")
         return None, None
 
@@ -552,7 +550,7 @@ def _load_obj(
     texture_atlas_size: int = 4,
     texture_wrap: Optional[str] = "repeat",
     path_manager: PathManager,
-    device: Device = "cpu",
+    device="cpu",
 ):
     """
     Load a mesh from a file-like object. See load_obj function more details.
@@ -578,16 +576,10 @@ def _load_obj(
 
     verts = _make_tensor(verts, cols=3, dtype=torch.float32, device=device)  # (V, 3)
     normals = _make_tensor(
-        normals,
-        cols=3,
-        dtype=torch.float32,
-        device=device,
+        normals, cols=3, dtype=torch.float32, device=device
     )  # (N, 3)
     verts_uvs = _make_tensor(
-        verts_uvs,
-        cols=2,
-        dtype=torch.float32,
-        device=device,
+        verts_uvs, cols=2, dtype=torch.float32, device=device
     )  # (T, 2)
 
     faces_verts_idx = _format_faces_indices(
@@ -656,117 +648,43 @@ def _load_obj(
 
 
 def save_obj(
-    f: PathOrStr,
+    f,
     verts,
     faces,
     decimal_places: Optional[int] = None,
     path_manager: Optional[PathManager] = None,
-    *,
-    verts_uvs: Optional[torch.Tensor] = None,
-    faces_uvs: Optional[torch.Tensor] = None,
-    texture_map: Optional[torch.Tensor] = None,
-) -> None:
+    normals = None,
+):
     """
     Save a mesh to an .obj file.
 
     Args:
-        f: File (str or path) to which the mesh should be written.
+        f: File (or path) to which the mesh should be written.
         verts: FloatTensor of shape (V, 3) giving vertex coordinates.
         faces: LongTensor of shape (F, 3) giving faces.
         decimal_places: Number of decimal places for saving.
         path_manager: Optional PathManager for interpreting f if
             it is a str.
-        verts_uvs: FloatTensor of shape (V, 2) giving the uv coordinate per vertex.
-        faces_uvs: LongTensor of shape (F, 3) giving the index into verts_uvs for
-            each vertex in the face.
-        texture_map: FloatTensor of shape (H, W, 3) representing the texture map
-            for the mesh which will be saved as an image. The values are expected
-            to be in the range [0, 1],
     """
-    if len(verts) and (verts.dim() != 2 or verts.size(1) != 3):
-        message = "'verts' should either be empty or of shape (num_verts, 3)."
+    if len(verts) and not (verts.dim() == 2 and verts.size(1) == 3):
+        message = "Argument 'verts' should either be empty or of shape (num_verts, 3)."
         raise ValueError(message)
 
-    if len(faces) and (faces.dim() != 2 or faces.size(1) != 3):
-        message = "'faces' should either be empty or of shape (num_faces, 3)."
-        raise ValueError(message)
-
-    if faces_uvs is not None and (faces_uvs.dim() != 2 or faces_uvs.size(1) != 3):
-        message = "'faces_uvs' should either be empty or of shape (num_faces, 3)."
-        raise ValueError(message)
-
-    if verts_uvs is not None and (verts_uvs.dim() != 2 or verts_uvs.size(1) != 2):
-        message = "'verts_uvs' should either be empty or of shape (num_verts, 2)."
-        raise ValueError(message)
-
-    if texture_map is not None and (texture_map.dim() != 3 or texture_map.size(2) != 3):
-        message = "'texture_map' should either be empty or of shape (H, W, 3)."
+    if len(faces) and not (faces.dim() == 2 and faces.size(1) == 3):
+        message = "Argument 'faces' should either be empty or of shape (num_faces, 3)."
         raise ValueError(message)
 
     if path_manager is None:
         path_manager = PathManager()
 
-    save_texture = all([t is not None for t in [faces_uvs, verts_uvs, texture_map]])
-    output_path = Path(f)
-
-    # Save the .obj file
     with _open_file(f, path_manager, "w") as f:
-        if save_texture:
-            # Add the header required for the texture info to be loaded correctly
-            obj_header = "\nmtllib {0}.mtl\nusemtl mesh\n\n".format(output_path.stem)
-            f.write(obj_header)
-        _save(
-            f,
-            verts,
-            faces,
-            decimal_places,
-            verts_uvs=verts_uvs,
-            faces_uvs=faces_uvs,
-            save_texture=save_texture,
-        )
-
-    # Save the .mtl and .png files associated with the texture
-    if save_texture:
-        image_path = output_path.with_suffix(".png")
-        mtl_path = output_path.with_suffix(".mtl")
-        if isinstance(f, str):
-            # Back to str for iopath interpretation.
-            image_path = str(image_path)
-            mtl_path = str(mtl_path)
-
-        # Save texture map to output folder
-        # pyre-fixme[16] # undefined attribute cpu
-        texture_map = texture_map.detach().cpu() * 255.0
-        image = Image.fromarray(texture_map.numpy().astype(np.uint8))
-        with _open_file(image_path, path_manager, "wb") as im_f:
-            image.save(im_f)
-
-        # Create .mtl file with the material name and texture map filename
-        # TODO: enable material properties to also be saved.
-        with _open_file(mtl_path, path_manager, "w") as f_mtl:
-            lines = f"newmtl mesh\n" f"map_Kd {output_path.stem}.png\n"
-            f_mtl.write(lines)
+        return _save(f, verts, faces, decimal_places, normals = normals)
 
 
 # TODO (nikhilar) Speed up this function.
-def _save(
-    f,
-    verts,
-    faces,
-    decimal_places: Optional[int] = None,
-    *,
-    verts_uvs: Optional[torch.Tensor] = None,
-    faces_uvs: Optional[torch.Tensor] = None,
-    save_texture: bool = False,
-) -> None:
-
-    if len(verts) and (verts.dim() != 2 or verts.size(1) != 3):
-        message = "'verts' should either be empty or of shape (num_verts, 3)."
-        raise ValueError(message)
-
-    if len(faces) and (faces.dim() != 2 or faces.size(1) != 3):
-        message = "'faces' should either be empty or of shape (num_faces, 3)."
-        raise ValueError(message)
+def _save(f, verts, faces, decimal_places: Optional[int] = None, normals =None) -> None:
+    assert not len(verts) or (verts.dim() == 2 and verts.size(1) == 3)
+    assert not len(faces) or (faces.dim() == 2 and faces.size(1) == 3)
 
     if not (len(verts) or len(faces)):
         warnings.warn("Empty 'verts' and 'faces' arguments provided")
@@ -783,28 +701,13 @@ def _save(
             float_str = "%" + ".%df" % decimal_places
 
         V, D = verts.shape
+        Vn, Dn  = normals.shape
         for i in range(V):
             vert = [float_str % verts[i, j] for j in range(D)]
             lines += "v %s\n" % " ".join(vert)
-
-    if save_texture:
-        if faces_uvs is not None and (faces_uvs.dim() != 2 or faces_uvs.size(1) != 3):
-            message = "'faces_uvs' should either be empty or of shape (num_faces, 3)."
-            raise ValueError(message)
-
-        if verts_uvs is not None and (verts_uvs.dim() != 2 or verts_uvs.size(1) != 2):
-            message = "'verts_uvs' should either be empty or of shape (num_verts, 2)."
-            raise ValueError(message)
-
-        # pyre-fixme[16] # undefined attribute cpu
-        verts_uvs, faces_uvs = verts_uvs.cpu(), faces_uvs.cpu()
-
-        # Save verts uvs after verts
-        if len(verts_uvs):
-            uV, uD = verts_uvs.shape
-            for i in range(uV):
-                uv = [float_str % verts_uvs[i, j] for j in range(uD)]
-                lines += "vt %s\n" % " ".join(uv)
+            # ここにVnを記入
+            normal = [float_str % normals[i,j] for j in range(Dn)]
+            lines += "vn %s\n" % " ".join(normal)
 
     if torch.any(faces >= verts.shape[0]) or torch.any(faces < 0):
         warnings.warn("Faces have invalid indices")
@@ -812,17 +715,94 @@ def _save(
     if len(faces):
         F, P = faces.shape
         for i in range(F):
-            if save_texture:
-                # Format faces as {verts_idx}/{verts_uvs_idx}
-                face = [
-                    "%d/%d" % (faces[i, j] + 1, faces_uvs[i, j] + 1) for j in range(P)
-                ]
-            else:
-                face = ["%d" % (faces[i, j] + 1) for j in range(P)]
-
+            face = ["%d" % (faces[i, j] + 1) for j in range(P)]
             if i + 1 < F:
                 lines += "f %s\n" % " ".join(face)
+            elif i + 1 == F:
+                # No newline at the end of the file.
+                lines += "f %s" % " ".join(face)
 
+    f.write(lines)
+
+
+
+# 自作ライブラリ
+
+def save_obj_with_colors(
+    f,
+    verts,
+    faces,
+    decimal_places: Optional[int] = None,
+    path_manager: Optional[PathManager] = None,
+    vertex_colors = None,
+    normals = None,
+):
+    """
+    Save a mesh to an .obj file.
+
+    Args:
+        f: File (or path) to which the mesh should be written.
+        verts: FloatTensor of shape (V, 3) giving vertex coordinates.
+        faces: LongTensor of shape (F, 3) giving faces.
+        decimal_places: Number of decimal places for saving.
+        path_manager: Optional PathManager for interpreting f if
+            it is a str.
+    """
+    if len(verts) and not (verts.dim() == 2 and verts.size(1) == 3):
+        message = "Argument 'verts' should either be empty or of shape (num_verts, 3)."
+        raise ValueError(message)
+
+    if len(faces) and not (faces.dim() == 2 and faces.size(1) == 3):
+        message = "Argument 'faces' should either be empty or of shape (num_faces, 3)."
+        raise ValueError(message)
+
+    if path_manager is None:
+        path_manager = PathManager()
+
+    with _open_file(f, path_manager, "w") as f:
+        return _save_with_color(f, verts, faces, vertex_colors=vertex_colors, normals = normals)
+
+
+# TODO (nikhilar) Speed up this function.
+def _save_with_color(f, verts, faces, vertex_colors =None, normals =None, decimal_places: Optional[int] = None) -> None:
+    assert not len(verts) or (verts.dim() == 2 and verts.size(1) == 3)
+    assert not len(faces) or (faces.dim() == 2 and faces.size(1) == 3)
+
+    if not (len(verts) or len(faces)):
+        warnings.warn("Empty 'verts' and 'faces' arguments provided")
+        return
+
+    verts, faces = verts.cpu(), faces.cpu()
+
+    lines = ""
+
+    if len(verts):
+        if decimal_places is None:
+            float_str = "%f"
+        else:
+            float_str = "%" + ".%df" % decimal_places
+
+        V, D = verts.shape
+        Vn, Dn  = normals.shape
+        Vc, Dc = vertex_colors.shape
+        for i in range(V):
+            vert = [float_str % verts[i, j] for j in range(D)]
+            # verts_colorを挿入
+            vert_color = [float_str % vertex_colors[i, j] for j in range(Dc)]
+            lines += "v %s\n" % " ".join(vert + vert_color)
+            # ここにVnを記入
+            normal = [float_str % normals[i,j] for j in range(Dn)]
+            lines += "vn %s\n" % " ".join(normal)
+
+    if torch.any(faces >= verts.shape[0]) or torch.any(faces < 0):
+        warnings.warn("Faces have invalid indices")
+
+    if len(faces):
+        F, P = faces.shape
+        for i in range(F):
+            face = ["%d" % (faces[i, j] + 1) for j in range(P)]
+            if i + 1 < F:
+                lines += "f %s\n" % " ".join(face)
             elif i + 1 == F:
                 # No newline at the end of the file.
                 lines += "f %s" % " ".join(face)

@@ -1,10 +1,4 @@
-/*
- * Copyright (c) Facebook, Inc. and its affiliates.
- * All rights reserved.
- *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree.
- */
+// Copyright (c) Facebook, Inc. and its affiliates. All rights reserved.
 
 #include <ATen/ATen.h>
 #include <ATen/cuda/CUDAContext.h>
@@ -121,7 +115,7 @@ __global__ void DistanceForwardKernel(
     // Unroll the last 6 iterations of the loop since they will happen
     // synchronized within a single warp.
     if (tid < 32)
-      WarpReduceMin<float>(min_dists, min_idxs, tid);
+      WarpReduce<float>(min_dists, min_idxs, tid);
 
     // Finally thread 0 writes the result to the output buffer.
     if (tid == 0) {

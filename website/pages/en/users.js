@@ -1,10 +1,7 @@
 /**
- * Copyright (c) Facebook, Inc. and its affiliates.
- * All rights reserved.
+ * Copyright (c) 2017-present, Facebook, Inc.
  *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree.
- */
+**/
 
 const React = require('react');
 
@@ -19,7 +16,7 @@ class Users extends React.Component {
       return null;
     }
 
-    const editUrl = `${siteConfig.repoUrl}/edit/main/website/siteConfig.js`;
+    const editUrl = `${siteConfig.repoUrl}/edit/master/website/siteConfig.js`;
     const showcase = siteConfig.users.map(user => (
       <a href={user.infoLink} key={user.infoLink}>
         <img src={user.image} alt={user.caption} title={user.caption} />

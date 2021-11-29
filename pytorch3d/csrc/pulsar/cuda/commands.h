@@ -1,11 +1,4 @@
-/*
- * Copyright (c) Facebook, Inc. and its affiliates.
- * All rights reserved.
- *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree.
- */
-
+// Copyright (c) Facebook, Inc. and its affiliates. All rights reserved.
 #ifndef PULSAR_NATIVE_CUDA_COMMANDS_H_
 #define PULSAR_NATIVE_CUDA_COMMANDS_H_
 
@@ -208,7 +201,7 @@ __device__ static float atomicMin(float* address, float val) {
 #define IABS(a) abs(a)
 
 // Checks.
-#define CHECKOK C10_CUDA_CHECK
+#define CHECKOK THCudaCheck
 #define ARGCHECK THArgCheck
 
 // Math.
@@ -485,7 +478,7 @@ __device__ static float atomicMin(float* address, float val) {
 #define END_PARALLEL_2D_NORET()
 #define END_PARALLEL_2D()
 #define RETURN_PARALLEL() return
-#define CHECKLAUNCH() C10_CUDA_CHECK(cudaGetLastError());
+#define CHECKLAUNCH() THCudaCheck(cudaGetLastError());
 #define ISONDEVICE true
 #define SYNCDEVICE() HANDLECUDA(cudaDeviceSynchronize())
 #define START_TIME(TN)                             \

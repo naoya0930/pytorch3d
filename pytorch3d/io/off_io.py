@@ -1,24 +1,20 @@
-# Copyright (c) Facebook, Inc. and its affiliates.
-# All rights reserved.
-#
-# This source code is licensed under the BSD-style license found in the
+# Copyright (c) Facebook, Inc. and its affiliates. All rights reserved.
+# This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 
 
 """
 This module implements utility functions for loading and saving
 meshes as .off files.
-
-This format is introduced, for example, at
-http://www.geomview.org/docs/html/OFF.html .
 """
 import warnings
+from pathlib import Path
 from typing import Optional, Tuple, Union, cast
 
 import numpy as np
 import torch
 from iopath.common.file_io import PathManager
-from pytorch3d.io.utils import PathOrStr, _check_faces_indices, _open_file
+from pytorch3d.io.utils import _check_faces_indices, _open_file
 from pytorch3d.renderer import TexturesAtlas, TexturesVertex
 from pytorch3d.structures import Meshes
 
@@ -230,17 +226,15 @@ def _load_off_stream(file) -> dict:
         faces_colors: FloatTensor of shape (F, C), where C is 3 or 4.
     """
     header = file.readline()
+    if header.lower() in (b"off\n", b"off\r\n", "off\n"):
+        header = file.readline()
 
     while _is_line_empty(header):
         header = file.readline()
 
-    if header[:3].lower() == b"off":
-        header = header[3:]
-
-    while _is_line_empty(header):
-        header = file.readline()
-
-    items = header.split()
+    items = header.split(b" ")
+    if len(items) and items[0].lower() in ("off", b"off"):
+        items = items[1:]
     if len(items) < 3:
         raise ValueError("Invalid counts line: %s" % header)
 
@@ -253,7 +247,7 @@ def _load_off_stream(file) -> dict:
     except ValueError:
         raise ValueError("Invalid counts line: %s" % header)
 
-    if (len(items) > 3 and not items[3].startswith(b"#")) or n_verts < 0 or n_faces < 0:
+    if (len(items) > 3 and not items[3].startswith("#")) or n_verts < 0 or n_faces < 0:
         raise ValueError("Invalid counts line: %s" % header)
 
     verts, verts_colors = _read_verts(file, n_verts)
@@ -418,12 +412,12 @@ class MeshOffFormat(MeshFormatInterpreter):
 
     """
 
-    def __init__(self) -> None:
+    def __init__(self):
         self.known_suffixes = (".off",)
 
     def read(
         self,
-        path: PathOrStr,
+        path: Union[str, Path],
         include_textures: bool,
         device,
         path_manager: PathManager,
@@ -459,7 +453,7 @@ class MeshOffFormat(MeshFormatInterpreter):
     def save(
         self,
         data: Meshes,
-        path: PathOrStr,
+        path: Union[str, Path],
         path_manager: PathManager,
         binary: Optional[bool],
         decimal_places: Optional[int] = None,

@@ -1,7 +1,6 @@
 #ifndef PULSAR_NATIVE_INCLUDE_FASTERMATH_H_
 #define PULSAR_NATIVE_INCLUDE_FASTERMATH_H_
 
-// @lint-ignore-every LICENSELINT
 /*=====================================================================*
  *                   Copyright (C) 2011 Paul Mineiro                   *
  * All rights reserved.                                                *

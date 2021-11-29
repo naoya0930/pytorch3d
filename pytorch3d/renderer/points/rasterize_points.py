@@ -1,14 +1,10 @@
-# Copyright (c) Facebook, Inc. and its affiliates.
-# All rights reserved.
-#
-# This source code is licensed under the BSD-style license found in the
-# LICENSE file in the root directory of this source tree.
+# Copyright (c) Facebook, Inc. and its affiliates. All rights reserved.
 
 from typing import List, Optional, Tuple, Union
 
 import numpy as np
 import torch
-from pytorch3d import _C
+from pytorch3d import _C  # pyre-fixme[21]: Could not find name `_C` in `pytorch3d`.
 from pytorch3d.renderer.mesh.rasterize_meshes import pix_to_non_square_ndc
 
 
@@ -62,9 +58,10 @@ def rasterize_points(
             bin_size=0 uses naive rasterization; setting bin_size=None attempts to
             set it heuristically based on the shape of the input. This should not
             affect the output, but can affect the speed of the forward pass.
-        max_points_per_bin: Only applicable when using coarse-to-fine rasterization
+        points_per_bin: Only applicable when using coarse-to-fine rasterization
             (bin_size > 0); this is the maximum number of points allowed within each
-            bin. This should not affect the output values, but can affect
+            bin. If more than this many points actually fall into a bin, an error
+            will be raised. This should not affect the output values, but can affect
             the memory usage in the forward pass.
 
     Returns:
@@ -195,6 +192,7 @@ def _format_radius(
 
 class _RasterizePoints(torch.autograd.Function):
     @staticmethod
+    # pyre-fixme[14]: `forward` overrides method defined in `Function` inconsistently.
     # pyre-fixme[14]: `forward` overrides method defined in `Function` inconsistently.
     def forward(
         ctx,

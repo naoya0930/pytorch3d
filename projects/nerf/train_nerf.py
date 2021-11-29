@@ -1,10 +1,5 @@
 #!/usr/bin/env python3
-# Copyright (c) Facebook, Inc. and its affiliates.
-# All rights reserved.
-#
-# This source code is licensed under the BSD-style license found in the
-# LICENSE file in the root directory of this source tree.
-
+# Copyright (c) Facebook, Inc. and its affiliates. All rights reserved.
 import collections
 import os
 import pickle
@@ -57,7 +52,6 @@ def main(cfg: DictConfig):
         n_hidden_neurons_dir=cfg.implicit_function.n_hidden_neurons_dir,
         n_layers_xyz=cfg.implicit_function.n_layers_xyz,
         density_noise_std=cfg.implicit_function.density_noise_std,
-        visualization=cfg.visualization.visdom,
     )
 
     # Move the model to the relevant device.
@@ -201,18 +195,17 @@ def main(cfg: DictConfig):
                 stats.print(stat_set="train")
 
             # Update the visualization cache.
-            if viz is not None:
-                visuals_cache.append(
-                    {
-                        "camera": camera.cpu(),
-                        "camera_idx": camera_idx,
-                        "image": image.cpu().detach(),
-                        "rgb_fine": nerf_out["rgb_fine"].cpu().detach(),
-                        "rgb_coarse": nerf_out["rgb_coarse"].cpu().detach(),
-                        "rgb_gt": nerf_out["rgb_gt"].cpu().detach(),
-                        "coarse_ray_bundle": nerf_out["coarse_ray_bundle"],
-                    }
-                )
+            visuals_cache.append(
+                {
+                    "camera": camera.cpu(),
+                    "camera_idx": camera_idx,
+                    "image": image.cpu().detach(),
+                    "rgb_fine": nerf_out["rgb_fine"].cpu().detach(),
+                    "rgb_coarse": nerf_out["rgb_coarse"].cpu().detach(),
+                    "rgb_gt": nerf_out["rgb_gt"].cpu().detach(),
+                    "coarse_ray_bundle": nerf_out["coarse_ray_bundle"],
+                }
+            )
 
         # Adjust the learning rate.
         lr_scheduler.step()

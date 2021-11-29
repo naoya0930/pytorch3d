@@ -1,13 +1,7 @@
 #!/bin/bash
-# Copyright (c) Facebook, Inc. and its affiliates.
-# All rights reserved.
-#
-# This source code is licensed under the BSD-style license found in the
-# LICENSE file in the root directory of this source tree.
+# Copyright (c) Facebook, Inc. and its affiliates. All rights reserved.
 
 # run this script from the project root using `./scripts/build_docs.sh`
-
-set -e
 
 usage() {
   echo "Usage: $0 [-b]"
@@ -39,7 +33,7 @@ done
 echo "-----------------------------------"
 echo "Building PyTorch3D Docusaurus site"
 echo "-----------------------------------"
-cd website
+cd website || exit
 yarn
 cd ..
 
@@ -51,7 +45,7 @@ mkdir -p "website/_tutorials"
 mkdir -p "website/static/files"
 python scripts/parse_tutorials.py --repo_dir "${cwd}"
 
-cd website
+cd website || exit
 
 if [[ $BUILD_STATIC == true ]]; then
   echo "-----------------------------------"

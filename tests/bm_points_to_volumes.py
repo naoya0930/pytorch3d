@@ -1,8 +1,4 @@
-# Copyright (c) Facebook, Inc. and its affiliates.
-# All rights reserved.
-#
-# This source code is licensed under the BSD-style license found in the
-# LICENSE file in the root directory of this source tree.
+# Copyright (c) Facebook, Inc. and its affiliates. All rights reserved.
 
 import itertools
 
@@ -12,7 +8,6 @@ from test_points_to_volumes import TestPointsToVolumes
 
 def bm_points_to_volumes() -> None:
     case_grid = {
-        "device": ["cpu", "cuda:0"],
         "batch_size": [10, 100],
         "interp_mode": ["trilinear", "nearest"],
         "volume_size": [[25, 25, 25], [101, 111, 121]],
@@ -27,7 +22,3 @@ def bm_points_to_volumes() -> None:
         kwargs_list,
         warmup_iters=1,
     )
-
-
-if __name__ == "__main__":
-    bm_points_to_volumes()

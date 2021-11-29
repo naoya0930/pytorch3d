@@ -1,8 +1,4 @@
-# Copyright (c) Facebook, Inc. and its affiliates.
-# All rights reserved.
-#
-# This source code is licensed under the BSD-style license found in the
-# LICENSE file in the root directory of this source tree.
+# Copyright (c) Facebook, Inc. and its affiliates. All rights reserved.
 
 """This module implements utility functions for loading .mtl files and textures."""
 import os
@@ -13,7 +9,6 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 from iopath.common.file_io import PathManager
-from pytorch3d.common.types import Device
 from pytorch3d.io.utils import _open_file, _read_image
 
 
@@ -299,7 +294,7 @@ def make_material_atlas(
 
     # bi-linearly interpolate the textures from the images
     # using the uv coordinates given by uv_pos.
-    textures = _bilinear_interpolation_grid_sample(image, uv_pos)
+    textures = _bilinear_interpolation_vectorized(image, uv_pos)
 
     return textures
 
@@ -311,14 +306,11 @@ def _bilinear_interpolation_vectorized(
     Bi linearly interpolate the image using the uv positions in the flow-field
     grid (following the naming conventions for torch.nn.functional.grid_sample).
 
-    This implementation uses the same steps as in the SoftRasterizer CUDA kernel
-    for loading textures. We are keeping it for reference to make it easy to
-    compare if required.
-
-    However it doesn't properly handle the out of bound values in the same way as
-    the grid_sample function does with the padding_mode argument.
-    This vectorized version requires less memory than
+    This implementation uses the same steps as in the SoftRas cuda kernel
+    to make it easy to compare. This vectorized version requires less memory than
     _bilinear_interpolation_grid_sample but is slightly slower.
+    If speed is an issue and the number of faces in the mesh and texture image sizes
+    are small, consider using _bilinear_interpolation_grid_sample instead.
 
     Args:
         image: FloatTensor of shape (H, W, D) a single image/input tensor with D
@@ -401,7 +393,7 @@ TextureImages = Dict[str, torch.Tensor]
 
 
 def _parse_mtl(
-    f: str, path_manager: PathManager, device: Device = "cpu"
+    f, path_manager: PathManager, device="cpu"
 ) -> Tuple[MaterialProperties, TextureFiles]:
     material_properties = {}
     texture_files = {}
@@ -459,7 +451,7 @@ def _load_texture_images(
         if material_name in texture_files:
             # Load the texture image.
             path = os.path.join(data_dir, texture_files[material_name])
-            if path_manager.exists(path):
+            if os.path.isfile(path):
                 image = (
                     _read_image(path, path_manager=path_manager, format="RGB") / 255.0
                 )
@@ -478,11 +470,11 @@ def _load_texture_images(
 
 
 def load_mtl(
-    f: str,
+    f,
     *,
     material_names: List[str],
     data_dir: str,
-    device: Device = "cpu",
+    device="cpu",
     path_manager: PathManager,
 ) -> Tuple[MaterialProperties, TextureImages]:
     """
@@ -490,10 +482,9 @@ def load_mtl(
     and specular light (Ka, Kd, Ks, Ns).
 
     Args:
-        f: path to the material information.
+        f: a file-like object of the material information.
         material_names: a list of the material names found in the .obj file.
         data_dir: the directory where the material texture files are located.
-        device: Device (as str or torch.tensor) on which to return the new tensors.
         path_manager: PathManager for interpreting both f and material_names.
 
     Returns:

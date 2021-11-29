@@ -1,9 +1,4 @@
-# Copyright (c) Facebook, Inc. and its affiliates.
-# All rights reserved.
-#
-# This source code is licensed under the BSD-style license found in the
-# LICENSE file in the root directory of this source tree.
-
+# Copyright (c) Facebook, Inc. and its affiliates. All rights reserved.
 from typing import NamedTuple
 
 import torch
@@ -14,9 +9,6 @@ class RayBundle(NamedTuple):
     RayBundle parametrizes points along projection rays by storing ray `origins`,
     `directions` vectors and `lengths` at which the ray-points are sampled.
     Furthermore, the xy-locations (`xys`) of the ray pixels are stored as well.
-    Note that `directions` don't have to be normalized; they define unit vectors
-    in the respective 1D coordinate systems; see documentation for
-    :func:`ray_bundle_to_ray_points` for the conversion formula.
     """
 
     origins: torch.Tensor
@@ -39,8 +31,6 @@ def ray_bundle_to_ray_points(ray_bundle: RayBundle) -> torch.Tensor:
                 + ray_bundle.directions[i, :] * ray_bundle.lengths[i, j]
             )
         ```
-    Note that both the directions and magnitudes of the vectors in
-    `ray_bundle.directions` matter.
 
     Args:
         ray_bundle: A `RayBundle` object with fields:
@@ -75,8 +65,6 @@ def ray_bundle_variables_to_ray_points(
                 + rays_directions[i, :] * rays_lengths[i, j]
             )
         ```
-    Note that both the directions and magnitudes of the vectors in
-    `rays_directions` matter.
 
     Args:
         rays_origins: A tensor of shape `(..., 3)`

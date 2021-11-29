@@ -1,8 +1,4 @@
-# Copyright (c) Facebook, Inc. and its affiliates.
-# All rights reserved.
-#
-# This source code is licensed under the BSD-style license found in the
-# LICENSE file in the root directory of this source tree.
+# Copyright (c) Facebook, Inc. and its affiliates. All rights reserved.
 
 import itertools
 import random
@@ -637,33 +633,6 @@ class TestPointclouds(TestCaseMixin, unittest.TestCase):
         with self.assertRaises(ValueError):
             clouds.extend(N=-1)
 
-    def test_to(self):
-        cloud = self.init_cloud(5, 100, 10)  # Using device "cuda:0"
-
-        cuda_device = torch.device("cuda:0")
-
-        converted_cloud = cloud.to("cuda:0")
-        self.assertEqual(cuda_device, converted_cloud.device)
-        self.assertEqual(cuda_device, cloud.device)
-        self.assertIs(cloud, converted_cloud)
-
-        converted_cloud = cloud.to(cuda_device)
-        self.assertEqual(cuda_device, converted_cloud.device)
-        self.assertEqual(cuda_device, cloud.device)
-        self.assertIs(cloud, converted_cloud)
-
-        cpu_device = torch.device("cpu")
-
-        converted_cloud = cloud.to("cpu")
-        self.assertEqual(cpu_device, converted_cloud.device)
-        self.assertEqual(cuda_device, cloud.device)
-        self.assertIsNot(cloud, converted_cloud)
-
-        converted_cloud = cloud.to(cpu_device)
-        self.assertEqual(cpu_device, converted_cloud.device)
-        self.assertEqual(cuda_device, cloud.device)
-        self.assertIsNot(cloud, converted_cloud)
-
     def test_to_list(self):
         cloud = self.init_cloud(5, 100, 10)
         device = torch.device("cuda:1")
@@ -1056,45 +1025,6 @@ class TestPointclouds(TestCaseMixin, unittest.TestCase):
                     self.assertClose(
                         clouds.normals_packed(), torch.cat(normals_est_list, dim=0)
                     )
-
-    def test_subsample(self):
-        lengths = [4, 5, 13, 3]
-        points = [torch.rand(length, 3) for length in lengths]
-        features = [torch.rand(length, 5) for length in lengths]
-        normals = [torch.rand(length, 3) for length in lengths]
-
-        pcl1 = Pointclouds(points=points).cuda()
-        self.assertIs(pcl1, pcl1.subsample(13))
-        self.assertIs(pcl1, pcl1.subsample([6, 13, 13, 13]))
-
-        lengths_max_4 = torch.tensor([4, 4, 4, 3]).cuda()
-        for with_normals, with_features in itertools.product([True, False], repeat=2):
-            with self.subTest(f"{with_normals} {with_features}"):
-                pcl = Pointclouds(
-                    points=points,
-                    normals=normals if with_normals else None,
-                    features=features if with_features else None,
-                )
-                pcl_copy = pcl.subsample(max_points=4)
-                for length, points_ in zip(lengths_max_4, pcl_copy.points_list()):
-                    self.assertEqual(points_.shape, (length, 3))
-                if with_normals:
-                    for length, normals_ in zip(lengths_max_4, pcl_copy.normals_list()):
-                        self.assertEqual(normals_.shape, (length, 3))
-                else:
-                    self.assertIsNone(pcl_copy.normals_list())
-                if with_features:
-                    for length, features_ in zip(
-                        lengths_max_4, pcl_copy.features_list()
-                    ):
-                        self.assertEqual(features_.shape, (length, 5))
-                else:
-                    self.assertIsNone(pcl_copy.features_list())
-
-        pcl2 = Pointclouds(points=points)
-        pcl_copy2 = pcl2.subsample(lengths_max_4)
-        for length, points_ in zip(lengths_max_4, pcl_copy2.points_list()):
-            self.assertEqual(points_.shape, (length, 3))
 
     @staticmethod
     def compute_packed_with_init(

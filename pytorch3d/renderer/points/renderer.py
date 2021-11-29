@@ -1,10 +1,5 @@
 #!/usr/bin/env python3
-# Copyright (c) Facebook, Inc. and its affiliates.
-# All rights reserved.
-#
-# This source code is licensed under the BSD-style license found in the
-# LICENSE file in the root directory of this source tree.
-
+# Copyright (c) Facebook, Inc. and its affiliates. All rights reserved.
 import torch
 import torch.nn as nn
 
@@ -32,7 +27,7 @@ class PointsRenderer(nn.Module):
     function.
     """
 
-    def __init__(self, rasterizer, compositor) -> None:
+    def __init__(self, rasterizer, compositor):
         super().__init__()
         self.rasterizer = rasterizer
         self.compositor = compositor

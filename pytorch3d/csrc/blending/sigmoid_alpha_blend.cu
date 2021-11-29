@@ -1,23 +1,17 @@
-/*
- * Copyright (c) Facebook, Inc. and its affiliates.
- * All rights reserved.
- *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree.
- */
+// Copyright (c) Facebook, Inc. and its affiliates. All rights reserved.
 
-#include <ATen/ATen.h>
 #include <ATen/cuda/CUDAContext.h>
 #include <c10/cuda/CUDAGuard.h>
+#include <torch/extension.h>
 #include <cmath>
 #include <vector>
 
 template <typename scalar_t>
 __global__ void SigmoidAlphaBlendForwardKernel(
     // clang-format off
-    const at::PackedTensorAccessor64<scalar_t, 4, at::RestrictPtrTraits> distances, // (N, H, W, K)
-    const at::PackedTensorAccessor64<int64_t, 4, at::RestrictPtrTraits> pix_to_face, // (N, H, W, K)
-    at::PackedTensorAccessor64<scalar_t, 3, at::RestrictPtrTraits> alphas, // (N, H, W)
+    const torch::PackedTensorAccessor64<scalar_t, 4, torch::RestrictPtrTraits> distances, // (N, H, W, K)
+    const torch::PackedTensorAccessor64<int64_t, 4, torch::RestrictPtrTraits> pix_to_face, // (N, H, W, K)
+    torch::PackedTensorAccessor64<scalar_t, 3, torch::RestrictPtrTraits> alphas, // (N, H, W)
     // clang-format on
     const scalar_t sigma,
     const int N,
@@ -67,7 +61,7 @@ __global__ void SigmoidAlphaBlendForwardKernel(
   }
 }
 
-at::Tensor SigmoidAlphaBlendForwardCuda(
+torch::Tensor SigmoidAlphaBlendForwardCuda(
     const at::Tensor& distances, // (N, H, W, K)
     const at::Tensor& pix_to_face, // (N, H, W, K)
     const float sigma) {
@@ -99,9 +93,9 @@ at::Tensor SigmoidAlphaBlendForwardCuda(
       distances.scalar_type(), "sigmoid_alpha_blend_kernel", ([&] {
         // clang-format off
       SigmoidAlphaBlendForwardKernel<scalar_t><<<blocks, threads, 0, stream>>>(
-      distances.packed_accessor64<scalar_t, 4, at::RestrictPtrTraits>(),
-      pix_to_face.packed_accessor64<int64_t, 4, at::RestrictPtrTraits>(),
-      alphas.packed_accessor64<scalar_t, 3, at::RestrictPtrTraits>(),
+      distances.packed_accessor64<scalar_t, 4, torch::RestrictPtrTraits>(),
+      pix_to_face.packed_accessor64<int64_t, 4, torch::RestrictPtrTraits>(),
+      alphas.packed_accessor64<scalar_t, 3, torch::RestrictPtrTraits>(),
       sigma,
       N,
       H,
@@ -117,11 +111,11 @@ at::Tensor SigmoidAlphaBlendForwardCuda(
 template <typename scalar_t>
 __global__ void SigmoidAlphaBlendBackwardKernel(
     // clang-format off
-    const at::PackedTensorAccessor64<scalar_t, 3, at::RestrictPtrTraits> grad_alphas, // (N, H, W)
-    const at::PackedTensorAccessor64<scalar_t, 3, at::RestrictPtrTraits> alphas, // (N, H, W)
-    const at::PackedTensorAccessor64<scalar_t, 4, at::RestrictPtrTraits> distances, // (N, H, W, K)
-    const at::PackedTensorAccessor64<int64_t, 4, at::RestrictPtrTraits> pix_to_face, // (N, H, W, K)
-    at::PackedTensorAccessor64<scalar_t, 4, at::RestrictPtrTraits> grad_distances, // (N, H, W)
+    const torch::PackedTensorAccessor64<scalar_t, 3, torch::RestrictPtrTraits> grad_alphas, // (N, H, W)
+    const torch::PackedTensorAccessor64<scalar_t, 3, torch::RestrictPtrTraits> alphas, // (N, H, W)
+    const torch::PackedTensorAccessor64<scalar_t, 4, torch::RestrictPtrTraits> distances, // (N, H, W, K)
+    const torch::PackedTensorAccessor64<int64_t, 4, torch::RestrictPtrTraits> pix_to_face, // (N, H, W, K)
+    torch::PackedTensorAccessor64<scalar_t, 4, torch::RestrictPtrTraits> grad_distances, // (N, H, W)
     // clang-format on
     const scalar_t sigma,
     const int N,
@@ -162,7 +156,7 @@ __global__ void SigmoidAlphaBlendBackwardKernel(
   }
 }
 
-at::Tensor SigmoidAlphaBlendBackwardCuda(
+torch::Tensor SigmoidAlphaBlendBackwardCuda(
     const at::Tensor& grad_alphas, // (N, H, W)
     const at::Tensor& alphas, // (N, H, W)
     const at::Tensor& distances, // (N, H, W, K)
@@ -195,20 +189,20 @@ at::Tensor SigmoidAlphaBlendBackwardCuda(
 
   AT_DISPATCH_FLOATING_TYPES(
       distances.scalar_type(), "sigmoid_alpha_blend_backward_kernel", ([&] {
-        SigmoidAlphaBlendBackwardKernel<
-            scalar_t><<<blocks, threads, 0, stream>>>(
-            // clang-format off
-            grad_alphas.packed_accessor64<scalar_t, 3,at::RestrictPtrTraits>(),
-            alphas.packed_accessor64<scalar_t, 3, at::RestrictPtrTraits>(),
-            distances.packed_accessor64<scalar_t, 4, at::RestrictPtrTraits>(),
-            pix_to_face.packed_accessor64<int64_t, 4, at::RestrictPtrTraits>(),
-            grad_distances.packed_accessor64<scalar_t, 4, at::RestrictPtrTraits>(),
-            // clang-format on
-            sigma,
-            N,
-            H,
-            W,
-            K);
+        SigmoidAlphaBlendBackwardKernel<scalar_t>
+            <<<blocks, threads, 0, stream>>>(
+                // clang-format off
+            grad_alphas.packed_accessor64<scalar_t, 3, torch::RestrictPtrTraits>(),
+            alphas.packed_accessor64<scalar_t, 3, torch::RestrictPtrTraits>(),
+            distances.packed_accessor64<scalar_t, 4, torch::RestrictPtrTraits>(),
+            pix_to_face.packed_accessor64<int64_t, 4, torch::RestrictPtrTraits>(),
+            grad_distances.packed_accessor64<scalar_t, 4, torch::RestrictPtrTraits>(),
+                // clang-format on
+                sigma,
+                N,
+                H,
+                W,
+                K);
       }));
 
   AT_CUDA_CHECK(cudaGetLastError());

@@ -1,8 +1,4 @@
-# Copyright (c) Facebook, Inc. and its affiliates.
-# All rights reserved.
-#
-# This source code is licensed under the BSD-style license found in the
-# LICENSE file in the root directory of this source tree.
+# Copyright (c) Facebook, Inc. and its affiliates. All rights reserved.
 
 import itertools
 import warnings
@@ -14,7 +10,7 @@ from pytorch3d.ops import interpolate_face_attributes
 from pytorch3d.structures.utils import list_to_packed, list_to_padded, padded_to_list
 from torch.nn.functional import interpolate
 
-from .utils import PackedRectangle, Rectangle, pack_unique_rectangles
+from .utils import pack_rectangles
 
 
 # This file contains classes and helper functions for texturing.
@@ -109,17 +105,17 @@ def _pad_texture_maps(
     Pad all texture images so they have the same height and width.
 
     Args:
-        images: list of N tensors of shape (H_i, W_i, C)
+        images: list of N tensors of shape (H_i, W_i, 3)
         align_corners: used for interpolation
 
     Returns:
-        tex_maps: Tensor of shape (N, max_H, max_W, C)
+        tex_maps: Tensor of shape (N, max_H, max_W, 3)
     """
     tex_maps = []
     max_H = 0
     max_W = 0
     for im in images:
-        h, w, _C = im.shape
+        h, w, _3 = im.shape
         if h > max_H:
             max_H = h
         if w > max_W:
@@ -134,7 +130,7 @@ def _pad_texture_maps(
                 image_BCHW, size=max_shape, mode="bilinear", align_corners=align_corners
             )
             tex_maps[i] = new_image_BCHW[0].permute(1, 2, 0)
-    tex_maps = torch.stack(tex_maps, dim=0)  # (num_tex_maps, max_H, max_W, C)
+    tex_maps = torch.stack(tex_maps, dim=0)  # (num_tex_maps, max_H, max_W, 3)
     return tex_maps
 
 
@@ -223,7 +219,7 @@ class TexturesBase:
 
         return new_props
 
-    def sample_textures(self) -> torch.Tensor:
+    def sample_textures(self):
         """
         Different texture classes sample textures in different ways
         e.g. for vertex textures, the values at each vertex
@@ -237,7 +233,7 @@ class TexturesBase:
         """
         raise NotImplementedError()
 
-    def faces_verts_textures_packed(self) -> torch.Tensor:
+    def faces_verts_textures_packed(self):
         """
         Returns the texture for each vertex for each face in the mesh.
         For N meshes, this function returns sum(Fi)x3xC where Fi is the
@@ -248,21 +244,21 @@ class TexturesBase:
         """
         raise NotImplementedError()
 
-    def clone(self) -> "TexturesBase":
+    def clone(self):
         """
         Each texture class should implement a method
         to clone all necessary internal tensors.
         """
         raise NotImplementedError()
 
-    def detach(self) -> "TexturesBase":
+    def detach(self):
         """
         Each texture class should implement a method
         to detach all necessary internal tensors.
         """
         raise NotImplementedError()
 
-    def __getitem__(self, index) -> "TexturesBase":
+    def __getitem__(self, index):
         """
         Each texture class should implement a method
         to get the texture properties for the
@@ -277,7 +273,7 @@ class TexturesBase:
 
 
 def Textures(
-    maps: Optional[Union[List[torch.Tensor], torch.Tensor]] = None,
+    maps: Union[List, torch.Tensor, None] = None,
     faces_uvs: Optional[torch.Tensor] = None,
     verts_uvs: Optional[torch.Tensor] = None,
     verts_rgb: Optional[torch.Tensor] = None,
@@ -288,12 +284,12 @@ def Textures(
 
     Args:
         maps: texture map per mesh. This can either be a list of maps
-          [(H, W, C)] or a padded tensor of shape (N, H, W, C).
+          [(H, W, 3)] or a padded tensor of shape (N, H, W, 3).
         faces_uvs: (N, F, 3) tensor giving the index into verts_uvs for each
             vertex in the face. Padding value is assumed to be -1.
         verts_uvs: (N, V, 2) tensor giving the uv coordinate per vertex.
-        verts_rgb: (N, V, C) tensor giving the color per vertex. Padding
-            value is assumed to be -1. (C=3 for RGB.)
+        verts_rgb: (N, V, 3) tensor giving the rgb color per vertex. Padding
+            value is assumed to be -1.
 
 
     Returns:
@@ -309,25 +305,26 @@ def Textures(
         PendingDeprecationWarning,
     )
 
-    if faces_uvs is not None and verts_uvs is not None and maps is not None:
+    if all(x is not None for x in [faces_uvs, verts_uvs, maps]):
+        # pyre-fixme[6]: Expected `Union[List[torch.Tensor], torch.Tensor]` for 1st
+        #  param but got `Union[None, List[typing.Any], torch.Tensor]`.
         return TexturesUV(maps=maps, faces_uvs=faces_uvs, verts_uvs=verts_uvs)
-
-    if verts_rgb is not None:
+    elif verts_rgb is not None:
         return TexturesVertex(verts_features=verts_rgb)
-
-    raise ValueError(
-        "Textures either requires all three of (faces uvs, verts uvs, maps) or verts rgb"
-    )
+    else:
+        raise ValueError(
+            "Textures either requires all three of (faces uvs, verts uvs, maps) or verts rgb"
+        )
 
 
 class TexturesAtlas(TexturesBase):
-    def __init__(self, atlas: Union[torch.Tensor, List[torch.Tensor]]) -> None:
+    def __init__(self, atlas: Union[torch.Tensor, List, None]):
         """
         A texture representation where each face has a square texture map.
         This is based on the implementation from SoftRasterizer [1].
 
         Args:
-            atlas: (N, F, R, R, C) tensor giving the per face texture map.
+            atlas: (N, F, R, R, D) tensor giving the per face texture map.
                 The atlas can be created during obj loading with the
                 pytorch3d.io.load_obj function - in the input arguments
                 set `create_texture_atlas=True`. The atlas will be
@@ -354,7 +351,7 @@ class TexturesAtlas(TexturesBase):
             )
             if not correct_format:
                 msg = (
-                    "Expected atlas to be a list of tensors of shape (F, R, R, C) "
+                    "Expected atlas to be a list of tensors of shape (F, R, R, D) "
                     "with the same value of R."
                 )
                 raise ValueError(msg)
@@ -372,17 +369,22 @@ class TexturesAtlas(TexturesBase):
                 self.device = atlas[0].device
 
         elif torch.is_tensor(atlas):
+            # pyre-fixme[16]: `Optional` has no attribute `ndim`.
             if atlas.ndim != 5:
-                msg = "Expected atlas to be of shape (N, F, R, R, C); got %r"
+                msg = "Expected atlas to be of shape (N, F, R, R, D); got %r"
                 raise ValueError(msg % repr(atlas.ndim))
             self._atlas_padded = atlas
             self._atlas_list = None
+            # pyre-fixme[16]: `Optional` has no attribute `device`.
             self.device = atlas.device
 
             # These values may be overridden when textures is
             # passed into the Meshes constructor. For more details
             # refer to the __init__ of Meshes.
+            # pyre-fixme[6]: Expected `Sized` for 1st param but got
+            #  `Optional[torch.Tensor]`.
             self._N = len(atlas)
+            # pyre-fixme[16]: `Optional` has no attribute `shape`.
             max_F = atlas.shape[1]
             self._num_faces_per_mesh = [max_F] * self._N
         else:
@@ -394,7 +396,7 @@ class TexturesAtlas(TexturesBase):
         # refer to the __init__ of Meshes.
         self.valid = torch.ones((self._N,), dtype=torch.bool, device=self.device)
 
-    def clone(self) -> "TexturesAtlas":
+    def clone(self):
         tex = self.__class__(atlas=self.atlas_padded().clone())
         if self._atlas_list is not None:
             tex._atlas_list = [atlas.clone() for atlas in self._atlas_list]
@@ -407,7 +409,7 @@ class TexturesAtlas(TexturesBase):
         tex._num_faces_per_mesh = num_faces
         return tex
 
-    def detach(self) -> "TexturesAtlas":
+    def detach(self):
         tex = self.__class__(atlas=self.atlas_padded().detach())
         if self._atlas_list is not None:
             tex._atlas_list = [atlas.detach() for atlas in self._atlas_list]
@@ -420,7 +422,7 @@ class TexturesAtlas(TexturesBase):
         tex._num_faces_per_mesh = num_faces
         return tex
 
-    def __getitem__(self, index) -> "TexturesAtlas":
+    def __getitem__(self, index):
         props = ["atlas_list", "_num_faces_per_mesh"]
         new_props = self._getitem(index, props=props)
         atlas = new_props["atlas_list"]
@@ -468,7 +470,7 @@ class TexturesAtlas(TexturesBase):
 
     def extend(self, N: int) -> "TexturesAtlas":
         new_props = self._extend(N, ["atlas_padded", "_num_faces_per_mesh"])
-        new_tex = self.__class__(atlas=new_props["atlas_padded"])
+        new_tex = TexturesAtlas(atlas=new_props["atlas_padded"])
         new_tex._num_faces_per_mesh = new_props["_num_faces_per_mesh"]
         return new_tex
 
@@ -499,7 +501,7 @@ class TexturesAtlas(TexturesBase):
                 representation) which overlap the pixel.
 
         Returns:
-            texels: (N, H, W, K, C)
+            texels: (N, H, W, K, 3)
         """
         N, H, W, K = fragments.pix_to_face.shape
         atlas_packed = self.atlas_packed()
@@ -532,7 +534,7 @@ class TexturesAtlas(TexturesBase):
         """
         Samples texture from each vertex for each face in the mesh.
         For N meshes with {Fi} number of faces, it returns a
-        tensor of shape sum(Fi)x3xC (C = 3 for RGB).
+        tensor of shape sum(Fi)x3xD (D = 3 for RGB).
         You can use the utils function in structures.utils to convert the
         packed representation to a list or padded.
         """
@@ -578,15 +580,6 @@ class TexturesAtlas(TexturesBase):
         """
         return self.__class__(atlas=[torch.cat(self.atlas_list())])
 
-    def check_shapes(
-        self, batch_size: int, max_num_verts: int, max_num_faces: int
-    ) -> bool:
-        """
-        Check if the dimensions of the atlas match that of the mesh faces
-        """
-        # (N, F) should be the same
-        return self.atlas_padded().shape[0:2] == (batch_size, max_num_faces)
-
 
 class TexturesUV(TexturesBase):
     def __init__(
@@ -596,15 +589,14 @@ class TexturesUV(TexturesBase):
         verts_uvs: Union[torch.Tensor, List[torch.Tensor], Tuple[torch.Tensor]],
         padding_mode: str = "border",
         align_corners: bool = True,
-    ) -> None:
+    ):
         """
         Textures are represented as a per mesh texture map and uv coordinates for each
         vertex in each face. NOTE: this class only supports one texture map per mesh.
 
         Args:
             maps: texture map per mesh. This can either be a list of maps
-              [(H, W, C)] or a padded tensor of shape (N, H, W, C).
-              For RGB, C = 3.
+              [(H, W, 3)] or a padded tensor of shape (N, H, W, 3)
             faces_uvs: (N, F, 3) LongTensor giving the index into verts_uvs
                         for each face
             verts_uvs: (N, V, 2) tensor giving the uv coordinates per vertex
@@ -707,44 +699,34 @@ class TexturesUV(TexturesBase):
         else:
             raise ValueError("Expected verts_uvs to be a tensor or list")
 
-        if isinstance(maps, (list, tuple)):
-            self._maps_list = maps
-        else:
+        if torch.is_tensor(maps):
+            # pyre-fixme[16]: `List` has no attribute `ndim`.
+            # pyre-fixme[16]: `List` has no attribute `shape`.
+            if maps.ndim != 4 or maps.shape[0] != self._N:
+                msg = "Expected maps to be of shape (N, H, W, 3); got %r"
+                raise ValueError(msg % repr(maps.shape))
+            self._maps_padded = maps
             self._maps_list = None
-        self._maps_padded = self._format_maps_padded(maps)
+        elif isinstance(maps, (list, tuple)):
+            if len(maps) != self._N:
+                raise ValueError("Expected one texture map per mesh in the batch.")
+            self._maps_list = maps
+            if self._N > 0:
+                maps = _pad_texture_maps(maps, align_corners=self.align_corners)
+            else:
+                maps = torch.empty(
+                    (self._N, 0, 0, 3), dtype=torch.float32, device=self.device
+                )
+            self._maps_padded = maps
+        else:
+            raise ValueError("Expected maps to be a tensor or list.")
 
         if self._maps_padded.device != self.device:
             raise ValueError("maps must be on the same device as verts/faces uvs.")
 
         self.valid = torch.ones((self._N,), dtype=torch.bool, device=self.device)
 
-    def _format_maps_padded(
-        self, maps: Union[torch.Tensor, List[torch.Tensor]]
-    ) -> torch.Tensor:
-        if isinstance(maps, torch.Tensor):
-            if maps.ndim != 4 or maps.shape[0] != self._N:
-                msg = "Expected maps to be of shape (N, H, W, C); got %r"
-                raise ValueError(msg % repr(maps.shape))
-            return maps
-
-        if isinstance(maps, (list, tuple)):
-            if len(maps) != self._N:
-                raise ValueError("Expected one texture map per mesh in the batch.")
-            if self._N > 0:
-                if not all(map.ndim == 3 for map in maps):
-                    raise ValueError("Invalid number of dimensions in texture maps")
-                if not all(map.shape[2] == maps[0].shape[2] for map in maps):
-                    raise ValueError("Inconsistent number of channels in maps")
-                maps_padded = _pad_texture_maps(maps, align_corners=self.align_corners)
-            else:
-                maps_padded = torch.empty(
-                    (self._N, 0, 0, 3), dtype=torch.float32, device=self.device
-                )
-            return maps_padded
-
-        raise ValueError("Expected maps to be a tensor or list of tensors.")
-
-    def clone(self) -> "TexturesUV":
+    def clone(self):
         tex = self.__class__(
             self.maps_padded().clone(),
             self.faces_uvs_padded().clone(),
@@ -765,7 +747,7 @@ class TexturesUV(TexturesBase):
         tex.valid = self.valid.clone()
         return tex
 
-    def detach(self) -> "TexturesUV":
+    def detach(self):
         tex = self.__class__(
             self.maps_padded().detach(),
             self.faces_uvs_padded().detach(),
@@ -786,7 +768,7 @@ class TexturesUV(TexturesBase):
         tex.valid = self.valid.detach()
         return tex
 
-    def __getitem__(self, index) -> "TexturesUV":
+    def __getitem__(self, index):
         props = ["verts_uvs_list", "faces_uvs_list", "maps_list", "_num_faces_per_mesh"]
         new_props = self._getitem(index, props)
         faces_uvs = new_props["faces_uvs_list"]
@@ -860,7 +842,8 @@ class TexturesUV(TexturesBase):
             else:
                 # The number of vertices in the mesh and in verts_uvs can differ
                 # e.g. if a vertex is shared between 3 faces, it can
-                # have up to 3 different uv coordinates.
+                # have up to 3 different uv coordinates. Therefore we cannot
+                # convert directly from padded to list using _num_verts_per_mesh
                 self._verts_uvs_list = list(self._verts_uvs_padded.unbind(0))
         return self._verts_uvs_list
 
@@ -883,7 +866,7 @@ class TexturesUV(TexturesBase):
                 "_num_faces_per_mesh",
             ],
         )
-        new_tex = self.__class__(
+        new_tex = TexturesUV(
             maps=new_props["maps_padded"],
             faces_uvs=new_props["faces_uvs_padded"],
             verts_uvs=new_props["verts_uvs_padded"],
@@ -1046,13 +1029,14 @@ class TexturesUV(TexturesBase):
         maps_list = []
         faces_uvs_list += self.faces_uvs_list()
         verts_uvs_list += self.verts_uvs_list()
-        maps_list += self.maps_list()
+        maps_list += list(self.maps_padded().unbind(0))
         num_faces_per_mesh = self._num_faces_per_mesh
         for tex in textures:
             verts_uvs_list += tex.verts_uvs_list()
             faces_uvs_list += tex.faces_uvs_list()
             num_faces_per_mesh += tex._num_faces_per_mesh
-            maps_list += tex.maps_list()
+            tex_map_list = list(tex.maps_padded().unbind(0))
+            maps_list += tex_map_list
 
         new_tex = self.__class__(
             maps=maps_list,
@@ -1065,7 +1049,10 @@ class TexturesUV(TexturesBase):
         return new_tex
 
     def _place_map_into_single_map(
-        self, single_map: torch.Tensor, map_: torch.Tensor, location: PackedRectangle
+        self,
+        single_map: torch.Tensor,
+        map_: torch.Tensor,
+        location: Tuple[int, int, bool],  # (x,y) and whether flipped
     ) -> None:
         """
         Copy map into a larger tensor single_map at the destination specified by location.
@@ -1074,15 +1061,15 @@ class TexturesUV(TexturesBase):
         Used by join_scene.
 
         Args:
-            single_map: (total_H, total_W, C)
-            map_: (H, W, C) source data
+            single_map: (total_H, total_W, 3)
+            map_: (H, W, 3) source data
             location: where to place map
         """
-        do_flip = location.flipped
+        do_flip = location[2]
         source = map_.transpose(0, 1) if do_flip else map_
         border_width = 0 if self.align_corners else 1
-        lower_u = location.x + border_width
-        lower_v = location.y + border_width
+        lower_u = location[0] + border_width
+        lower_v = location[1] + border_width
         upper_u = lower_u + source.shape[0]
         upper_v = lower_v + source.shape[1]
         single_map[lower_u:upper_u, lower_v:upper_v] = source
@@ -1116,33 +1103,28 @@ class TexturesUV(TexturesBase):
         If align_corners=False, we need to add an artificial border around
         every map.
 
-        We use the function `pack_unique_rectangles` to provide a layout for
-        the single map. This means that if self was created with a list of maps,
-        and to() has not been called, and there were two maps which were exactly
-        the same tensor object, then they will become the same data in the unified map.
-        _place_map_into_single_map is used to copy the maps into the single map.
-        The merging of verts_uvs and faces_uvs is handled locally in this function.
+        We use the function `pack_rectangles` to provide a layout for the
+        single map. _place_map_into_single_map is used to copy the maps
+        into the single map. The merging of verts_uvs and faces_uvs are
+        handled locally in this function.
         """
         maps = self.maps_list()
         heights_and_widths = []
         extra_border = 0 if self.align_corners else 2
         for map_ in maps:
             heights_and_widths.append(
-                Rectangle(
-                    map_.shape[0] + extra_border, map_.shape[1] + extra_border, id(map_)
-                )
+                (map_.shape[0] + extra_border, map_.shape[1] + extra_border)
             )
-        merging_plan = pack_unique_rectangles(heights_and_widths)
-        C = maps[0].shape[-1]
-        single_map = maps[0].new_zeros((*merging_plan.total_size, C))
+        merging_plan = pack_rectangles(heights_and_widths)
+        # pyre-fixme[16]: `Tensor` has no attribute `new_zeros`.
+        single_map = maps[0].new_zeros((*merging_plan.total_size, 3))
         verts_uvs = self.verts_uvs_list()
         verts_uvs_merged = []
 
         for map_, loc, uvs in zip(maps, merging_plan.locations, verts_uvs):
             new_uvs = uvs.clone()
-            if loc.is_first:
-                self._place_map_into_single_map(single_map, map_, loc)
-            do_flip = loc.flipped
+            self._place_map_into_single_map(single_map, map_, loc)
+            do_flip = loc[2]
             x_shape = map_.shape[1] if do_flip else map_.shape[0]
             y_shape = map_.shape[0] if do_flip else map_.shape[1]
 
@@ -1156,46 +1138,22 @@ class TexturesUV(TexturesBase):
                     new_uvs = torch.Tensor(new_uvs)
 
             # If align_corners is True, then an index of x (where x is in
-            # the range 0 .. map_.shape[1]-1) in one of the input maps
-            # was hit by a u of x/(map_.shape[1]-1).
-            # That x is located at the index loc[1] + x in the single_map, and
-            # to hit that we need u to equal (loc[1] + x) / (total_size[1]-1)
+            # the range 0 .. map_.shape[]-1) in one of the input maps
+            # was hit by a u of x/(map_.shape[]-1).
+            # That x is located at the index loc[] + x in the single_map, and
+            # to hit that we need u to equal (loc[] + x) / (total_size[]-1)
             # so the old u should be mapped to
-            #   { u*(map_.shape[1]-1) + loc[1] } / (total_size[1]-1)
-
-            # Also, an index of y (where y is in
-            # the range 0 .. map_.shape[0]-1) in one of the input maps
-            # was hit by a v of 1 - y/(map_.shape[0]-1).
-            # That y is located at the index loc[0] + y in the single_map, and
-            # to hit that we need v to equal 1 - (loc[0] + y) / (total_size[0]-1)
-            # so the old v should be mapped to
-            #   1 - { (1-v)*(map_.shape[0]-1) + loc[0] } / (total_size[0]-1)
-            # =
-            # { v*(map_.shape[0]-1) + total_size[0] - map.shape[0] - loc[0] }
-            #        / (total_size[0]-1)
+            #   { u*(map_.shape[]-1) + loc[] } / (total_size[]-1)
 
             # If align_corners is False, then an index of x (where x is in
-            # the range 1 .. map_.shape[1]-2) in one of the input maps
-            # was hit by a u of (x+0.5)/(map_.shape[1]).
-            # That x is located at the index loc[1] + 1 + x in the single_map,
+            # the range 1 .. map_.shape[]-2) in one of the input maps
+            # was hit by a u of (x+0.5)/(map_.shape[]).
+            # That x is located at the index loc[] + 1 + x in the single_map,
             # (where the 1 is for the border)
-            # and to hit that we need u to equal (loc[1] + 1 + x + 0.5) / (total_size[1])
+            # and to hit that we need u to equal (loc[] + 1 + x + 0.5) / (total_size[])
             # so the old u should be mapped to
-            #   { loc[1] + 1 + u*map_.shape[1]-0.5 + 0.5 } / (total_size[1])
-            #  = { loc[1] + 1 + u*map_.shape[1] } / (total_size[1])
-
-            # Also, an index of y (where y is in
-            # the range 1 .. map_.shape[0]-2) in one of the input maps
-            # was hit by a v of 1 - (y+0.5)/(map_.shape[0]).
-            # That y is located at the index loc[0] + 1 + y in the single_map,
-            # (where the 1 is for the border)
-            # and to hit that we need v to equal 1 - (loc[0] + 1 + y + 0.5) / (total_size[0])
-            # so the old v should be mapped to
-            #   1 - { loc[0] + 1 + (1-v)*map_.shape[0]-0.5 + 0.5 } / (total_size[0])
-            #  = { total_size[0] - loc[0] -1 - (1-v)*map_.shape[0]  }
-            #         / (total_size[0])
-            #  = { total_size[0] - loc[0] - map.shape[0] - 1 + v*map_.shape[0] }
-            #         / (total_size[0])
+            #   { loc[] + 1 + u*map_.shape[]-0.5 + 0.5 } / (total_size[])
+            #  = { loc[] + 1 + u*map_.shape[] } / (total_size[])
 
             # We change the y's in new_uvs for the scaling of height,
             # and the x's for the scaling of width.
@@ -1207,11 +1165,9 @@ class TexturesUV(TexturesBase):
             denom_y = merging_plan.total_size[1] - one_if_align
             scale_y = y_shape - one_if_align
             new_uvs[:, 1] *= scale_x / denom_x
-            new_uvs[:, 1] += (
-                merging_plan.total_size[0] - x_shape - loc.x - one_if_not_align
-            ) / denom_x
+            new_uvs[:, 1] += (loc[0] + one_if_not_align) / denom_x
             new_uvs[:, 0] *= scale_y / denom_y
-            new_uvs[:, 0] += (loc.y + one_if_not_align) / denom_y
+            new_uvs[:, 0] += (loc[1] + one_if_not_align) / denom_y
 
             verts_uvs_merged.append(new_uvs)
 
@@ -1229,7 +1185,7 @@ class TexturesUV(TexturesBase):
             padding_mode=self.padding_mode,
         )
 
-    def centers_for_image(self, index: int) -> torch.Tensor:
+    def centers_for_image(self, index):
         """
         Return the locations in the texture map which correspond to the given
         verts_uvs, for one of the meshes. This is potentially useful for
@@ -1265,30 +1221,18 @@ class TexturesUV(TexturesBase):
             centers = centers[0, :, 0].T
         return centers
 
-    def check_shapes(
-        self, batch_size: int, max_num_verts: int, max_num_faces: int
-    ) -> bool:
-        """
-        Check if the dimensions of the verts/faces uvs match that of the mesh
-        """
-        # (N, F) should be the same
-        # (N, V) is not guaranteed to be the same
-        return (self.faces_uvs_padded().shape[0:2] == (batch_size, max_num_faces)) and (
-            self.verts_uvs_padded().shape[0] == batch_size
-        )
-
 
 class TexturesVertex(TexturesBase):
     def __init__(
         self,
         verts_features: Union[torch.Tensor, List[torch.Tensor], Tuple[torch.Tensor]],
-    ) -> None:
+    ):
         """
         Batched texture representation where each vertex in a mesh
-        has a C dimensional feature vector.
+        has a D dimensional feature vector.
 
         Args:
-            verts_features: list of (Vi, C) or (N, V, C) tensor giving a feature
+            verts_features: list of (Vi, D) or (N, V, D) tensor giving a feature
                 vector with arbitrary dimensions for each vertex.
         """
         if isinstance(verts_features, (tuple, list)):
@@ -1297,7 +1241,7 @@ class TexturesVertex(TexturesBase):
             )
             if not correct_shape:
                 raise ValueError(
-                    "Expected verts_features to be a list of tensors of shape (V, C)."
+                    "Expected verts_features to be a list of tensors of shape (V, D)."
                 )
 
             self._verts_features_list = verts_features
@@ -1315,7 +1259,7 @@ class TexturesVertex(TexturesBase):
 
         elif torch.is_tensor(verts_features):
             if verts_features.ndim != 3:
-                msg = "Expected verts_features to be of shape (N, V, C); got %r"
+                msg = "Expected verts_features to be of shape (N, V, D); got %r"
                 raise ValueError(msg % repr(verts_features.shape))
             self._verts_features_padded = verts_features
             self._verts_features_list = None
@@ -1335,34 +1279,37 @@ class TexturesVertex(TexturesBase):
         # refer to the __init__ of Meshes.
         self.valid = torch.ones((self._N,), dtype=torch.bool, device=self.device)
 
-    def clone(self) -> "TexturesVertex":
+    def clone(self):
         tex = self.__class__(self.verts_features_padded().clone())
         if self._verts_features_list is not None:
             tex._verts_features_list = [f.clone() for f in self._verts_features_list]
-        tex._num_verts_per_mesh = self._num_verts_per_mesh.copy()
+        num_verts = (
+            self._num_verts_per_mesh.clone()
+            if torch.is_tensor(self._num_verts_per_mesh)
+            else self._num_verts_per_mesh
+        )
+        tex._num_verts_per_mesh = num_verts
         tex.valid = self.valid.clone()
         return tex
 
-    def detach(self) -> "TexturesVertex":
+    def detach(self):
         tex = self.__class__(self.verts_features_padded().detach())
         if self._verts_features_list is not None:
             tex._verts_features_list = [f.detach() for f in self._verts_features_list]
-        tex._num_verts_per_mesh = self._num_verts_per_mesh.copy()
+        num_verts = (
+            self._num_verts_per_mesh.detach()
+            if torch.is_tensor(self._num_verts_per_mesh)
+            else self._num_verts_per_mesh
+        )
+        tex._num_verts_per_mesh = num_verts
         tex.valid = self.valid.detach()
         return tex
 
-    def __getitem__(self, index) -> "TexturesVertex":
+    def __getitem__(self, index):
         props = ["verts_features_list", "_num_verts_per_mesh"]
         new_props = self._getitem(index, props)
         verts_features = new_props["verts_features_list"]
         if isinstance(verts_features, list):
-            # Handle the case of an empty list
-            if len(verts_features) == 0:
-                verts_features = torch.empty(
-                    size=(0, 0, 3),
-                    dtype=torch.float32,
-                    device=self.verts_features_padded().device,
-                )
             new_tex = self.__class__(verts_features=verts_features)
         elif torch.is_tensor(verts_features):
             new_tex = self.__class__(verts_features=[verts_features])
@@ -1403,7 +1350,7 @@ class TexturesVertex(TexturesBase):
 
     def extend(self, N: int) -> "TexturesVertex":
         new_props = self._extend(N, ["verts_features_padded", "_num_verts_per_mesh"])
-        new_tex = self.__class__(verts_features=new_props["verts_features_padded"])
+        new_tex = TexturesVertex(verts_features=new_props["verts_features_padded"])
         new_tex._num_verts_per_mesh = new_props["_num_verts_per_mesh"]
         return new_tex
 
@@ -1467,13 +1414,13 @@ class TexturesVertex(TexturesBase):
 
         verts_features_list = []
         verts_features_list += self.verts_features_list()
-        num_verts_per_mesh = self._num_verts_per_mesh.copy()
+        num_faces_per_mesh = self._num_verts_per_mesh
         for tex in textures:
             verts_features_list += tex.verts_features_list()
-            num_verts_per_mesh += tex._num_verts_per_mesh
+            num_faces_per_mesh += tex._num_verts_per_mesh
 
         new_tex = self.__class__(verts_features=verts_features_list)
-        new_tex._num_verts_per_mesh = num_verts_per_mesh
+        new_tex._num_verts_per_mesh = num_faces_per_mesh
         return new_tex
 
     def join_scene(self) -> "TexturesVertex":
@@ -1481,12 +1428,3 @@ class TexturesVertex(TexturesBase):
         Return a new TexturesVertex amalgamating the batch.
         """
         return self.__class__(verts_features=[torch.cat(self.verts_features_list())])
-
-    def check_shapes(
-        self, batch_size: int, max_num_verts: int, max_num_faces: int
-    ) -> bool:
-        """
-        Check if the dimensions of the verts features match that of the mesh verts
-        """
-        # (N, V) should be the same
-        return self.verts_features_padded().shape[:-1] == (batch_size, max_num_verts)

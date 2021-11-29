@@ -1,9 +1,5 @@
 #!/usr/bin/bash
-# Copyright (c) Facebook, Inc. and its affiliates.
-# All rights reserved.
-#
-# This source code is licensed under the BSD-style license found in the
-# LICENSE file in the root directory of this source tree.
+# Copyright (c) Facebook, Inc. and its affiliates. All rights reserved.
 
 # This script is for running some of the tutorials using the nightly build in
 # an isolated environment. It is designed to be run in docker.
@@ -23,7 +19,7 @@ conda init bash
 source ~/.bashrc
 conda create -y -n myenv python=3.8 matplotlib ipython ipywidgets nbconvert
 conda activate myenv
-conda install -y -c fvcore -c iopath -c conda-forge fvcore iopath
+conda install -y -c conda-forge -c fvcore -c iopath fvcore iopath
 conda install -y -c pytorch pytorch=1.6.0 cudatoolkit=10.1 torchvision
 conda install -y -c pytorch3d-nightly pytorch3d
 pip install plotly scikit-image

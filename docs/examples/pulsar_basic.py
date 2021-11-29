@@ -1,10 +1,5 @@
 #!/usr/bin/env python3
-# Copyright (c) Facebook, Inc. and its affiliates.
-# All rights reserved.
-#
-# This source code is licensed under the BSD-style license found in the
-# LICENSE file in the root directory of this source tree.
-
+# Copyright (c) Facebook, Inc. and its affiliates. All rights reserved.
 """
 This example demonstrates the most trivial, direct interface of the pulsar
 sphere renderer. It renders and saves an image with 10 random spheres.

@@ -8,8 +8,8 @@
 The core library is written in PyTorch. Several components have underlying implementation in CUDA for improved performance. A subset of these components have CPU implementations in C++/PyTorch. It is advised to use PyTorch3D with GPU support in order to use all the features.
 
 - Linux or macOS or Windows
-- Python 3.6, 3.7, 3.8 or 3.9
-- PyTorch 1.6.0, 1.7.0, 1.7.1, 1.8.0, 1.8.1, 1.9.0 or 1.9.1.
+- Python 3.6, 3.7 or 3.8
+- PyTorch 1.4, 1.5.0, 1.5.1, 1.6.0, 1.7.0, or 1.7.1.
 - torchvision that matches the PyTorch installation. You can install them together as explained at pytorch.org to make sure of this.
 - gcc & g++ ≥ 4.9
 - [fvcore](https://github.com/facebookresearch/fvcore)
@@ -22,7 +22,7 @@ The runtime dependencies can be installed by running:
 conda create -n pytorch3d python=3.8
 conda activate pytorch3d
 conda install -c pytorch pytorch=1.7.1 torchvision cudatoolkit=10.2
-conda install -c fvcore -c iopath -c conda-forge fvcore iopath
+conda install -c conda-forge -c fvcore -c iopath fvcore iopath
 ```
 
 For the CUB build time dependency, if you are using conda, you can continue with
@@ -78,18 +78,17 @@ Or, to install a nightly (non-official, alpha) build:
 conda install pytorch3d -c pytorch3d-nightly
 ```
 ### 2. Install from PyPI, on Mac only.
-This works with pytorch 1.9.0 only. The build is CPU only.
+This works with pytorch 1.7.1 only. The build is CPU only.
 ```
 pip install pytorch3d
 ```
 
 ### 3. Install wheels for Linux
-We have prebuilt wheels with CUDA for Linux for PyTorch 1.9.0, for each of the CUDA versions that they support,
-for Python 3.7, 3.8 and 3.9.
+We have prebuilt wheels with CUDA for Linux for PyTorch 1.7.0 and 1.7.1, for each of the CUDA versions that they support.
 These are installed in a special way.
-For example, to install for Python 3.8, PyTorch 1.9.0 and CUDA 10.2
+For example, to install for Python 3.6, PyTorch 1.7.0 and CUDA 10.1
 ```
-pip install pytorch3d -f https://dl.fbaipublicfiles.com/pytorch3d/packaging/wheels/py38_cu102_pyt190/download.html
+pip install pytorch3d -f https://dl.fbaipublicfiles.com/pytorch3d/packaging/wheels/py36_cu101_pyt170/download.html
 ```
 
 In general, from inside IPython, or in Google Colab or a jupyter notebook, you can install with
@@ -139,9 +138,32 @@ MACOSX_DEPLOYMENT_TARGET=10.14 CC=clang CXX=clang++ pip install -e .
 
 **Install from local clone on Windows:**
 
-Depending on the version of PyTorch, changes to some PyTorch headers may be needed before compilation. These are often discussed in issues in this repository.
+If you are using pre-compiled pytorch 1.4 and torchvision 0.5, you should make the following changes to the pytorch source code to successfully compile with Visual Studio 2019 (MSVC 19.16.27034) and CUDA 10.1.
 
-After any necessary patching, you can go to "x64 Native Tools Command Prompt for VS 2019" to compile and install
+Change python/Lib/site-packages/torch/include/csrc/jit/script/module.h
+
+L466, 476, 493, 506, 536
+```
+-static constexpr *
++static const *
+```
+Change python/Lib/site-packages/torch/include/csrc/jit/argument_spec.h
+
+L190
+```
+-static constexpr size_t DEPTH_LIMIT = 128;
++static const size_t DEPTH_LIMIT = 128;
+```
+
+Change python/Lib/site-packages/torch/include/pybind11/cast.h
+
+L1449
+```
+-explicit operator type&() { return *(this->value); }
++explicit operator type& () { return *((type*)(this->value)); }
+```
+
+After patching, you can go to "x64 Native Tools Command Prompt for VS 2019" to compile and install
 ```
 cd pytorch3d
 python3 setup.py install

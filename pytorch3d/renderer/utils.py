@@ -1,20 +1,14 @@
-# Copyright (c) Facebook, Inc. and its affiliates.
-# All rights reserved.
-#
-# This source code is licensed under the BSD-style license found in the
-# LICENSE file in the root directory of this source tree.
+# Copyright (c) Facebook, Inc. and its affiliates. All rights reserved.
 
 
 import copy
 import inspect
 import warnings
-from typing import Any, Optional, Union
+from typing import Any, Union
 
 import numpy as np
 import torch
 import torch.nn as nn
-
-from ..common.types import Device, make_device
 
 
 class TensorAccessor(nn.Module):
@@ -25,7 +19,7 @@ class TensorAccessor(nn.Module):
     and one element in the batch needs to be modified.
     """
 
-    def __init__(self, class_object, index: Union[int, slice]) -> None:
+    def __init__(self, class_object, index: Union[int, slice]):
         """
         Args:
             class_object: this should be an instance of a class which has
@@ -94,22 +88,17 @@ class TensorProperties(nn.Module):
     A mix-in class for storing tensors as properties with helper methods.
     """
 
-    def __init__(
-        self,
-        dtype: torch.dtype = torch.float32,
-        device: Device = "cpu",
-        **kwargs,
-    ) -> None:
+    def __init__(self, dtype=torch.float32, device="cpu", **kwargs):
         """
         Args:
             dtype: data type to set for the inputs
-            device: Device (as str or torch.device)
+            device: str or torch.device
             kwargs: any number of keyword arguments. Any arguments which are
-                of type (float/int/list/tuple/tensor/array) are broadcasted and
+                of type (float/int/tuple/tensor/array) are broadcasted and
                 other keyword arguments are set as attributes.
         """
         super().__init__()
-        self.device = make_device(device)
+        self.device = device
         self._N = 0
         if kwargs is not None:
 
@@ -146,7 +135,7 @@ class TensorProperties(nn.Module):
     def isempty(self) -> bool:
         return self._N == 0
 
-    def __getitem__(self, index: Union[int, slice]) -> TensorAccessor:
+    def __getitem__(self, index: Union[int, slice]):
         """
 
         Args:
@@ -163,27 +152,20 @@ class TensorProperties(nn.Module):
         msg = "Expected index of type int or slice; got %r"
         raise ValueError(msg % type(index))
 
-    def to(self, device: Device = "cpu") -> "TensorProperties":
+    def to(self, device: str = "cpu"):
         """
         In place operation to move class properties which are tensors to a
         specified device. If self has a property "device", update this as well.
         """
-        device_ = make_device(device)
         for k in dir(self):
             v = getattr(self, k)
             if k == "device":
-                setattr(self, k, device_)
-            if torch.is_tensor(v) and v.device != device_:
-                setattr(self, k, v.to(device_))
+                setattr(self, k, device)
+            if torch.is_tensor(v) and v.device != device:
+                setattr(self, k, v.to(device))
         return self
 
-    def cpu(self) -> "TensorProperties":
-        return self.to("cpu")
-
-    def cuda(self, device: Optional[int] = None) -> "TensorProperties":
-        return self.to(f"cuda:{device}" if device is not None else "cuda")
-
-    def clone(self, other) -> "TensorProperties":
+    def clone(self, other):
         """
         Update the tensor properties of other with the cloned properties of self.
         """
@@ -198,7 +180,7 @@ class TensorProperties(nn.Module):
             setattr(other, k, v_clone)
         return other
 
-    def gather_props(self, batch_idx) -> "TensorProperties":
+    def gather_props(self, batch_idx):
         """
         This is an in place operation to reformat all tensor class attributes
         based on a set of given indices using torch.gather. This is useful when
@@ -275,41 +257,28 @@ class TensorProperties(nn.Module):
         return self
 
 
-def format_tensor(
-    input,
-    dtype: torch.dtype = torch.float32,
-    device: Device = "cpu",
-) -> torch.Tensor:
+def format_tensor(input, dtype=torch.float32, device: str = "cpu") -> torch.Tensor:
     """
     Helper function for converting a scalar value to a tensor.
 
     Args:
         input: Python scalar, Python list/tuple, torch scalar, 1D torch tensor
         dtype: data type for the input
-        device: Device (as str or torch.device) on which the tensor should be placed.
+        device: torch device on which the tensor should be placed.
 
     Returns:
         input_vec: torch tensor with optional added batch dimension.
     """
-    device_ = make_device(device)
     if not torch.is_tensor(input):
-        input = torch.tensor(input, dtype=dtype, device=device_)
-
+        input = torch.tensor(input, dtype=dtype, device=device)
     if input.dim() == 0:
         input = input.view(1)
-
-    if input.device == device_:
-        return input
-
-    input = input.to(device=device)
+    if input.device != device:
+        input = input.to(device=device)
     return input
 
 
-def convert_to_tensors_and_broadcast(
-    *args,
-    dtype: torch.dtype = torch.float32,
-    device: Device = "cpu",
-):
+def convert_to_tensors_and_broadcast(*args, dtype=torch.float32, device: str = "cpu"):
     """
     Helper function to handle parsing an arbitrary number of inputs (*args)
     which all need to have the same batch dimension.

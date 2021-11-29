@@ -1,10 +1,5 @@
 #!/bin/bash
-# Copyright (c) Facebook, Inc. and its affiliates.
-# All rights reserved.
-#
-# This source code is licensed under the BSD-style license found in the
-# LICENSE file in the root directory of this source tree.
-
+# Copyright (c) Facebook, Inc. and its affiliates. All rights reserved.
 set -ex
 
 script_dir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
@@ -31,4 +26,4 @@ then
 fi
 
 # shellcheck disable=SC2086
-conda build $CONDA_CHANNEL_FLAGS ${TEST_FLAG:-} -c bottler -c fvcore -c iopath -c conda-forge --no-anaconda-upload --python "$PYTHON_VERSION" packaging/pytorch3d
+conda build $CONDA_CHANNEL_FLAGS ${TEST_FLAG:-} -c bottler -c defaults -c conda-forge -c fvcore -c iopath --no-anaconda-upload --python "$PYTHON_VERSION" packaging/pytorch3d

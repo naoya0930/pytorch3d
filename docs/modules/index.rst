@@ -3,7 +3,6 @@ API Documentation
 
 .. toctree::
 
-    common
     structures
     io
     loss

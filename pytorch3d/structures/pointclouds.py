@@ -1,20 +1,11 @@
-# Copyright (c) Facebook, Inc. and its affiliates.
-# All rights reserved.
-#
-# This source code is licensed under the BSD-style license found in the
-# LICENSE file in the root directory of this source tree.
+# Copyright (c) Facebook, Inc. and its affiliates. All rights reserved.
 
-from itertools import zip_longest
-from typing import List, Optional, Sequence, Tuple, Union
-
-import numpy as np
 import torch
 
-from ..common.types import Device, make_device
 from . import utils as struct_utils
 
 
-class Pointclouds:
+class Pointclouds(object):
     """
     This class provides functions for working with batches of 3d point clouds,
     and converting between representations.
@@ -112,7 +103,7 @@ class Pointclouds:
         "equisized",
     ]
 
-    def __init__(self, points, normals=None, features=None) -> None:
+    def __init__(self, points, normals=None, features=None):
         """
         Args:
             points:
@@ -139,7 +130,7 @@ class Pointclouds:
         Refer to comments above for descriptions of List and Padded
         representations.
         """
-        self.device = torch.device("cpu")
+        self.device = None
 
         # Indicates whether the clouds in the list/batch have the same number
         # of points.
@@ -184,6 +175,7 @@ class Pointclouds:
         if isinstance(points, list):
             self._points_list = points
             self._N = len(self._points_list)
+            self.device = torch.device("cpu")
             self.valid = torch.zeros((self._N,), dtype=torch.bool, device=self.device)
             self._num_points_per_cloud = []
 
@@ -240,9 +232,7 @@ class Pointclouds:
         if features_C is not None:
             self._C = features_C
 
-    def _parse_auxiliary_input(
-        self, aux_input
-    ) -> Tuple[Optional[List[torch.Tensor]], Optional[torch.Tensor], Optional[int]]:
+    def _parse_auxiliary_input(self, aux_input):
         """
         Interpret the auxiliary inputs (normals, features) given to __init__.
 
@@ -312,10 +302,10 @@ class Pointclouds:
                     points in a cloud."
             )
 
-    def __len__(self) -> int:
+    def __len__(self):
         return self._N
 
-    def __getitem__(self, index) -> "Pointclouds":
+    def __getitem__(self, index):
         """
         Args:
             index: Specifying the index of the cloud to retrieve.
@@ -325,26 +315,24 @@ class Pointclouds:
             Pointclouds object with selected clouds. The tensors are not cloned.
         """
         normals, features = None, None
-        normals_list = self.normals_list()
-        features_list = self.features_list()
         if isinstance(index, int):
             points = [self.points_list()[index]]
-            if normals_list is not None:
-                normals = [normals_list[index]]
-            if features_list is not None:
-                features = [features_list[index]]
+            if self.normals_list() is not None:
+                normals = [self.normals_list()[index]]
+            if self.features_list() is not None:
+                features = [self.features_list()[index]]
         elif isinstance(index, slice):
             points = self.points_list()[index]
-            if normals_list is not None:
-                normals = normals_list[index]
-            if features_list is not None:
-                features = features_list[index]
+            if self.normals_list() is not None:
+                normals = self.normals_list()[index]
+            if self.features_list() is not None:
+                features = self.features_list()[index]
         elif isinstance(index, list):
             points = [self.points_list()[i] for i in index]
-            if normals_list is not None:
-                normals = [normals_list[i] for i in index]
-            if features_list is not None:
-                features = [features_list[i] for i in index]
+            if self.normals_list() is not None:
+                normals = [self.normals_list()[i] for i in index]
+            if self.features_list() is not None:
+                features = [self.features_list()[i] for i in index]
         elif isinstance(index, torch.Tensor):
             if index.dim() != 1 or index.dtype.is_floating_point:
                 raise IndexError(index)
@@ -355,10 +343,10 @@ class Pointclouds:
                 index = index.squeeze(1) if index.numel() > 0 else index
                 index = index.tolist()
             points = [self.points_list()[i] for i in index]
-            if normals_list is not None:
-                normals = [normals_list[i] for i in index]
-            if features_list is not None:
-                features = [features_list[i] for i in index]
+            if self.normals_list() is not None:
+                normals = [self.normals_list()[i] for i in index]
+            if self.features_list() is not None:
+                features = [self.features_list()[i] for i in index]
         else:
             raise IndexError(index)
 
@@ -373,7 +361,7 @@ class Pointclouds:
         """
         return self._N == 0 or self.valid.eq(False).all()
 
-    def points_list(self) -> List[torch.Tensor]:
+    def points_list(self):
         """
         Get the list representation of the points.
 
@@ -392,10 +380,9 @@ class Pointclouds:
             self._points_list = points_list
         return self._points_list
 
-    def normals_list(self) -> Optional[List[torch.Tensor]]:
+    def normals_list(self):
         """
-        Get the list representation of the normals,
-        or None if there are no normals.
+        Get the list representation of the normals.
 
         Returns:
             list of tensors of normals of shape (P_n, 3).
@@ -409,10 +396,9 @@ class Pointclouds:
             )
         return self._normals_list
 
-    def features_list(self) -> Optional[List[torch.Tensor]]:
+    def features_list(self):
         """
-        Get the list representation of the features,
-        or None if there are no features.
+        Get the list representation of the features.
 
         Returns:
             list of tensors of features of shape (P_n, C).
@@ -426,7 +412,7 @@ class Pointclouds:
             )
         return self._features_list
 
-    def points_packed(self) -> torch.Tensor:
+    def points_packed(self):
         """
         Get the packed representation of the points.
 
@@ -436,24 +422,22 @@ class Pointclouds:
         self._compute_packed()
         return self._points_packed
 
-    def normals_packed(self) -> Optional[torch.Tensor]:
+    def normals_packed(self):
         """
         Get the packed representation of the normals.
 
         Returns:
-            tensor of normals of shape (sum(P_n), 3),
-            or None if there are no normals.
+            tensor of normals of shape (sum(P_n), 3).
         """
         self._compute_packed()
         return self._normals_packed
 
-    def features_packed(self) -> Optional[torch.Tensor]:
+    def features_packed(self):
         """
         Get the packed representation of the features.
 
         Returns:
-            tensor of features of shape (sum(P_n), C),
-            or None if there are no features
+            tensor of features of shape (sum(P_n), C).
         """
         self._compute_packed()
         return self._features_packed
@@ -491,7 +475,7 @@ class Pointclouds:
         """
         return self._num_points_per_cloud
 
-    def points_padded(self) -> torch.Tensor:
+    def points_padded(self):
         """
         Get the padded representation of the points.
 
@@ -501,10 +485,9 @@ class Pointclouds:
         self._compute_padded()
         return self._points_padded
 
-    def normals_padded(self) -> Optional[torch.Tensor]:
+    def normals_padded(self):
         """
-        Get the padded representation of the normals,
-        or None if there are no normals.
+        Get the padded representation of the normals.
 
         Returns:
             tensor of normals of shape (N, max(P_n), 3).
@@ -512,10 +495,9 @@ class Pointclouds:
         self._compute_padded()
         return self._normals_padded
 
-    def features_padded(self) -> Optional[torch.Tensor]:
+    def features_padded(self):
         """
-        Get the padded representation of the features,
-        or None if there are no features.
+        Get the padded representation of the features.
 
         Returns:
             tensor of features of shape (N, max(P_n), 3).
@@ -572,18 +554,16 @@ class Pointclouds:
                 pad_value=0.0,
                 equisized=self.equisized,
             )
-            normals_list = self.normals_list()
-            if normals_list is not None:
+            if self.normals_list() is not None:
                 self._normals_padded = struct_utils.list_to_padded(
-                    normals_list,
+                    self.normals_list(),
                     (self._P, 3),
                     pad_value=0.0,
                     equisized=self.equisized,
                 )
-            features_list = self.features_list()
-            if features_list is not None:
+            if self.features_list() is not None:
                 self._features_padded = struct_utils.list_to_padded(
-                    features_list,
+                    self.features_list(),
                     (self._P, self._C),
                     pad_value=0.0,
                     equisized=self.equisized,
@@ -720,7 +700,7 @@ class Pointclouds:
                 setattr(other, k, v.detach())
         return other
 
-    def to(self, device: Device, copy: bool = False):
+    def to(self, device, copy: bool = False):
         """
         Match functionality of torch.Tensor.to()
         If copy = True or the self Tensor is on a different device, the
@@ -729,39 +709,34 @@ class Pointclouds:
         then self is returned.
 
         Args:
-          device: Device (as str or torch.device) for the new tensor.
+          device: Device id for the new tensor.
           copy: Boolean indicator whether or not to clone self. Default False.
 
         Returns:
           Pointclouds object.
         """
-        device_ = make_device(device)
-
-        if not copy and self.device == device_:
+        if not copy and self.device == device:
             return self
-
         other = self.clone()
-        if self.device == device_:
-            return other
-
-        other.device = device_
-        if other._N > 0:
-            other._points_list = [v.to(device_) for v in other.points_list()]
-            if other._normals_list is not None:
-                other._normals_list = [n.to(device_) for n in other.normals_list()]
-            if other._features_list is not None:
-                other._features_list = [f.to(device_) for f in other.features_list()]
-        for k in self._INTERNAL_TENSORS:
-            v = getattr(self, k)
-            if torch.is_tensor(v):
-                setattr(other, k, v.to(device_))
+        if self.device != device:
+            other.device = device
+            if other._N > 0:
+                other._points_list = [v.to(device) for v in other.points_list()]
+                if other._normals_list is not None:
+                    other._normals_list = [n.to(device) for n in other.normals_list()]
+                if other._features_list is not None:
+                    other._features_list = [f.to(device) for f in other.features_list()]
+            for k in self._INTERNAL_TENSORS:
+                v = getattr(self, k)
+                if torch.is_tensor(v):
+                    setattr(other, k, v.to(device))
         return other
 
     def cpu(self):
-        return self.to("cpu")
+        return self.to(torch.device("cpu"))
 
     def cuda(self):
-        return self.to("cuda")
+        return self.to(torch.device("cuda"))
 
     def get_cloud(self, index: int):
         """
@@ -784,12 +759,10 @@ class Pointclouds:
             )
         points = self.points_list()[index]
         normals, features = None, None
-        normals_list = self.normals_list()
-        if normals_list is not None:
-            normals = normals_list[index]
-        features_list = self.features_list()
-        if features_list is not None:
-            features = features_list[index]
+        if self.normals_list() is not None:
+            normals = self.normals_list()[index]
+        if self.features_list() is not None:
+            features = self.features_list()[index]
         return points, normals, features
 
     # TODO(nikhilar) Move function to a utils file.
@@ -858,54 +831,6 @@ class Pointclouds:
         """
         new_clouds = self.clone()
         return new_clouds.offset_(offsets_packed)
-
-    def subsample(self, max_points: Union[int, Sequence[int]]) -> "Pointclouds":
-        """
-        Subsample each cloud so that it has at most max_points points.
-
-        Args:
-            max_points: maximum number of points in each cloud.
-
-        Returns:
-            new Pointclouds object, or self if nothing to be done.
-        """
-        if isinstance(max_points, int):
-            max_points = [max_points] * len(self)
-        elif len(max_points) != len(self):
-            raise ValueError("wrong number of max_points supplied")
-        if all(
-            int(n_points) <= int(max_)
-            for n_points, max_ in zip(self.num_points_per_cloud(), max_points)
-        ):
-            return self
-
-        points_list = []
-        features_list = []
-        normals_list = []
-        for max_, n_points, points, features, normals in zip_longest(
-            map(int, max_points),
-            map(int, self.num_points_per_cloud()),
-            self.points_list(),
-            self.features_list() or (),
-            self.normals_list() or (),
-        ):
-            if n_points > max_:
-                keep_np = np.random.choice(n_points, max_, replace=False)
-                keep = torch.tensor(keep_np).to(points.device)
-                points = points[keep]
-                if features is not None:
-                    features = features[keep]
-                if normals is not None:
-                    normals = normals[keep]
-            points_list.append(points)
-            features_list.append(features)
-            normals_list.append(normals)
-
-        return Pointclouds(
-            points=points_list,
-            normals=self.normals_list() and normals_list,
-            features=self.features_list() and features_list,
-        )
 
     def scale_(self, scale):
         """
@@ -1036,15 +961,13 @@ class Pointclouds:
         new_points_list, new_normals_list, new_features_list = [], None, None
         for points in self.points_list():
             new_points_list.extend(points.clone() for _ in range(N))
-        normals_list = self.normals_list()
-        if normals_list is not None:
+        if self.normals_list() is not None:
             new_normals_list = []
-            for normals in normals_list:
+            for normals in self.normals_list():
                 new_normals_list.extend(normals.clone() for _ in range(N))
-        features_list = self.features_list()
-        if features_list is not None:
+        if self.features_list() is not None:
             new_features_list = []
-            for features in features_list:
+            for features in self.features_list():
                 new_features_list.extend(features.clone() for _ in range(N))
         return self.__class__(
             points=new_points_list, normals=new_normals_list, features=new_features_list

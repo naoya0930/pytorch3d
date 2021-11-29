@@ -1,43 +1,45 @@
 #!/bin/bash
-# Copyright (c) Facebook, Inc. and its affiliates.
-# All rights reserved.
-#
-# This source code is licensed under the BSD-style license found in the
-# LICENSE file in the root directory of this source tree.
+# Copyright (c) Facebook, Inc. and its affiliates. All rights reserved.
 
+usage() {
+  echo "Usage: $0 [-b]"
+  echo ""
+  echo "Build and push updated PyTorch3D site."
+  echo ""
+  exit 1
+}
 
-# Instructions, assuming you are on a fresh pytorch3d checkout on a local
-# drive.
+# Current directory (needed for cleanup later)
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
-# (1) Have a separate checkout of pytorch3d at the head of the gh-pages branch
-# on a local drive. Set the variable GHP to its full path.
-# Any uncommitted changes there will be obliterated.
-# For example
-#   GHP=/path/to/pytorch3d-gh-pages
-#   git clone -b gh-pages https://github.com/facebookresearch/pytorch3d $GHP
+# Make temporary directory
+WORK_DIR=$(mktemp -d)
+cd "${WORK_DIR}" || exit
 
-# (2) Run this script in this directory with
-#   sudo docker run -it --rm -v $PWD/..:/loc -v $GHP:/ghp continuumio/miniconda3 bash --login /loc/scripts/publish_website.sh
+# Clone both master & gh-pages branches
+git clone git@github.com:facebookresearch/pytorch3d.git pytorch3d-master
+git clone --branch gh-pages git@github.com:facebookresearch/pytorch3d.git pytorch3d-gh-pages
 
-# (3) Choose a commit message, commit and push:
-#   cd $GHP && git add .
-#   git commit -m 'Update latest version of site'
-#   git push
+cd pytorch3d-master/website || exit
 
-set -e
+# Build site, tagged with "latest" version; baseUrl set to /versions/latest/
+yarn
+yarn run build
 
-conda create -y -n myenv python=3.7 nodejs
+cd .. || exit
+bash ./scripts/build_website.sh -b
 
-# Note: Using bash --login together with the continuumio/miniconda3 image
-# is what lets conda activate work so smoothly.
+cd "${WORK_DIR}" || exit
+rm -rf pytorch3d-gh-pages/*
+touch pytorch3d-gh-pages/CNAME
+echo "pytorch3d.org" > pytorch3d-gh-pages/CNAME
+mv pytorch3d-master/website/build/pytorch3d/* pytorch3d-gh-pages/
 
-conda activate myenv
-pip install nbformat==4.4.0 nbconvert==5.3.1 ipywidgets==7.5.1 tornado==4.2 bs4 notebook==5.7.12
-npm install --global yarn
+cd pytorch3d-gh-pages || exit
+git add .
+git commit -m 'Update latest version of site'
+git push
 
-cd /loc
-bash scripts/build_website.sh -b
-
-rm -rf /ghp/*
-echo "pytorch3d.org" > /ghp/CNAME
-mv /loc/website/build/pytorch3d/* /ghp/
+# Clean up
+cd "${SCRIPT_DIR}" || exit
+rm -rf "${WORK_DIR}"

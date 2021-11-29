@@ -61,9 +61,13 @@ TODO: Add support for latex in markdown in jupyter notebooks and embedded images
 
 ## Build and publish the website
 
-To update for a new version, you need to build the tutorials and the website and push to the gh-pages
-branch of `github.com/facebookresearch/pytorch3d`. The instructions in `scripts/publish_website.sh`
-bring it all together.
+The following script will build the tutorials and the website and push to the gh-pages
+branch of `github.com/facebookresearch/pytorch3d`.
+
+```
+bash scripts/publish_website.sh
+```
+
 
 ## Add a new tutorial
 

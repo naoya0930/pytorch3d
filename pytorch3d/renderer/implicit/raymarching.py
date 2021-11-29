@@ -1,9 +1,4 @@
-# Copyright (c) Facebook, Inc. and its affiliates.
-# All rights reserved.
-#
-# This source code is licensed under the BSD-style license found in the
-# LICENSE file in the root directory of this source tree.
-
+# Copyright (c) Facebook, Inc. and its affiliates. All rights reserved.
 import warnings
 from typing import Optional, Tuple, Union
 
@@ -49,7 +44,7 @@ class EmissionAbsorptionRaymarcher(torch.nn.Module):
     elements along the ray direction.
     """
 
-    def __init__(self, surface_thickness: int = 1) -> None:
+    def __init__(self, surface_thickness: int = 1):
         """
         Args:
             surface_thickness: Denotes the overlap between the absorption
@@ -128,7 +123,7 @@ class AbsorptionOnlyRaymarcher(torch.nn.Module):
     It then returns `opacities = 1 - total_transmission`.
     """
 
-    def __init__(self) -> None:
+    def __init__(self):
         super().__init__()
 
     def forward(
@@ -182,12 +177,12 @@ def _check_density_bounds(
     Checks whether the elements of `rays_densities` range within `bounds`.
     If not issues a warning.
     """
-    with torch.no_grad():
-        if (rays_densities.max() > bounds[1]) or (rays_densities.min() < bounds[0]):
-            warnings.warn(
-                "One or more elements of rays_densities are outside of valid"
-                + f"range {str(bounds)}"
-            )
+    # pyre-fixme[16]: `ByteTensor` has no attribute `any`.
+    if ((rays_densities > bounds[1]) | (rays_densities < bounds[0])).any():
+        warnings.warn(
+            "One or more elements of rays_densities are outside of valid"
+            + f"range {str(bounds)}"
+        )
 
 
 def _check_raymarcher_inputs(

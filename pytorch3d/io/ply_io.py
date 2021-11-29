@@ -1,7 +1,5 @@
-# Copyright (c) Facebook, Inc. and its affiliates.
-# All rights reserved.
-#
-# This source code is licensed under the BSD-style license found in the
+# Copyright (c) Facebook, Inc. and its affiliates. All rights reserved.
+# This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 
 
@@ -15,13 +13,13 @@ import sys
 import warnings
 from collections import namedtuple
 from io import BytesIO, TextIOBase
-from typing import List, Optional, Tuple, cast
+from pathlib import Path
+from typing import List, Optional, Tuple, Union
 
 import numpy as np
 import torch
 from iopath.common.file_io import PathManager
-from pytorch3d.io.utils import PathOrStr, _check_faces_indices, _make_tensor, _open_file
-from pytorch3d.renderer import TexturesVertex
+from pytorch3d.io.utils import _check_faces_indices, _make_tensor, _open_file
 from pytorch3d.structures import Meshes, Pointclouds
 
 from .pluggable_formats import (
@@ -65,10 +63,10 @@ class _PlyElementType:
         self.name:       (str) name of the element
     """
 
-    def __init__(self, name: str, count: int) -> None:
+    def __init__(self, name: str, count: int):
         self.name = name
         self.count = count
-        self.properties: List[_Property] = []
+        self.properties = []
 
     def add_property(
         self, name: str, data_type: str, list_size_type: Optional[str] = None
@@ -129,7 +127,7 @@ class _PlyElementType:
 
 
 class _PlyHeader:
-    def __init__(self, f) -> None:
+    def __init__(self, f):
         """
         Load a header of a Ply file from a file-like object.
         Members:
@@ -144,7 +142,7 @@ class _PlyHeader:
         if f.readline() not in [b"ply\n", b"ply\r\n", "ply\n"]:
             raise ValueError("Invalid file header.")
         seen_format = False
-        self.elements: List[_PlyElementType] = []
+        self.elements = []
         self.obj_info = []
         while True:
             line = f.readline()
@@ -463,7 +461,7 @@ def _read_ply_element_ascii(f, definition: _PlyElementType):
     return data
 
 
-def _read_raw_array(f, aim: str, length: int, dtype: type = np.uint8, dtype_size=1):
+def _read_raw_array(f, aim: str, length: int, dtype=np.uint8, dtype_size=1):
     """
     Read [length] elements from a file.
 
@@ -781,27 +779,10 @@ def _load_ply_raw(f, path_manager: PathManager) -> Tuple[_PlyHeader, dict]:
 
 def _get_verts_column_indices(
     vertex_head: _PlyElementType,
-) -> Tuple[List[int], Optional[List[int]], float, Optional[List[int]]]:
+) -> Tuple[List[int], Optional[List[int]]]:
     """
-    Get the columns of verts, verts_colors, and verts_normals in the vertex
-    element of a parsed ply file, together with a color scale factor.
-    When the colors are in byte format, they are scaled from 0..255 to [0,1].
-    Otherwise they are not scaled.
-
-    For example, if the vertex element looks as follows:
-
-        element vertex 892
-        property double x
-        property double y
-        property double z
-        property double nx
-        property double ny
-        property double nz
-        property uchar red
-        property uchar green
-        property uchar blue
-
-    then the return value will be ([0,1,2], [6,7,8], 1.0/255, [3,4,5])
+    Get the columns of verts and verts_colors in the vertex
+    element of a parsed ply file.
 
     Args:
         vertex_head: as returned from load_ply_raw.
@@ -810,13 +791,9 @@ def _get_verts_column_indices(
         point_idxs: List[int] of 3 point columns.
         color_idxs: List[int] of 3 color columns if they are present,
                     otherwise None.
-        color_scale: value to scale colors by.
-        normal_idxs: List[int] of 3 normals columns if they are present,
-                    otherwise None.
     """
     point_idxs: List[Optional[int]] = [None, None, None]
     color_idxs: List[Optional[int]] = [None, None, None]
-    normal_idxs: List[Optional[int]] = [None, None, None]
     for i, prop in enumerate(vertex_head.properties):
         if prop.list_size_type is not None:
             raise ValueError("Invalid vertices in file: did not expect list.")
@@ -826,32 +803,18 @@ def _get_verts_column_indices(
         for j, name in enumerate(["red", "green", "blue"]):
             if prop.name == name:
                 color_idxs[j] = i
-        for j, name in enumerate(["nx", "ny", "nz"]):
-            if prop.name == name:
-                normal_idxs[j] = i
     if None in point_idxs:
         raise ValueError("Invalid vertices in file.")
-    color_scale = 1.0
-    if all(
-        idx is not None and _PLY_TYPES[vertex_head.properties[idx].data_type].size == 1
-        for idx in color_idxs
-    ):
-        color_scale = 1.0 / 255
-    return (
-        point_idxs,
-        # pyre-fixme[22]: The cast is redundant.
-        None if None in color_idxs else cast(List[int], color_idxs),
-        color_scale,
-        # pyre-fixme[22]: The cast is redundant.
-        None if None in normal_idxs else cast(List[int], normal_idxs),
-    )
+    if None in color_idxs:
+        return point_idxs, None
+    return point_idxs, color_idxs
 
 
 def _get_verts(
     header: _PlyHeader, elements: dict
-) -> Tuple[torch.Tensor, Optional[torch.Tensor], Optional[torch.Tensor]]:
+) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
     """
-    Get the vertex locations, colors and normals from a parsed ply file.
+    Get the vertex locations and colors from a parsed ply file.
 
     Args:
         header, elements: as returned from load_ply_raw.
@@ -859,7 +822,6 @@ def _get_verts(
     Returns:
         verts: FloatTensor of shape (V, 3).
         vertex_colors: None or FloatTensor of shape (V, 3).
-        vertex_normals: None or FloatTensor of shape (V, 3).
     """
 
     vertex = elements.get("vertex", None)
@@ -868,16 +830,14 @@ def _get_verts(
     if not isinstance(vertex, list):
         raise ValueError("Invalid vertices in file.")
     vertex_head = next(head for head in header.elements if head.name == "vertex")
-    point_idxs, color_idxs, color_scale, normal_idxs = _get_verts_column_indices(
-        vertex_head
-    )
+    point_idxs, color_idxs = _get_verts_column_indices(vertex_head)
 
     # Case of no vertices
     if vertex_head.count == 0:
         verts = torch.zeros((0, 3), dtype=torch.float32)
         if color_idxs is None:
-            return verts, None, None
-        return verts, torch.zeros((0, 3), dtype=torch.float32), None
+            return verts, None
+        return verts, torch.zeros((0, 3), dtype=torch.float32)
 
     # Simple case where the only data is the vertices themselves
     if (
@@ -886,23 +846,16 @@ def _get_verts(
         and vertex[0].ndim == 2
         and vertex[0].shape[1] == 3
     ):
-        return _make_tensor(vertex[0], cols=3, dtype=torch.float32), None, None
+        return _make_tensor(vertex[0], cols=3, dtype=torch.float32), None
 
     vertex_colors = None
-    vertex_normals = None
 
     if len(vertex) == 1:
         # This is the case where the whole vertex element has one type,
         # so it was read as a single array and we can index straight into it.
         verts = torch.tensor(vertex[0][:, point_idxs], dtype=torch.float32)
         if color_idxs is not None:
-            vertex_colors = color_scale * torch.tensor(
-                vertex[0][:, color_idxs], dtype=torch.float32
-            )
-        if normal_idxs is not None:
-            vertex_normals = torch.tensor(
-                vertex[0][:, normal_idxs], dtype=torch.float32
-            )
+            vertex_colors = torch.tensor(vertex[0][:, color_idxs], dtype=torch.float32)
     else:
         # The vertex element is heterogeneous. It was read as several arrays,
         # part by part, where a part is a set of properties with the same type.
@@ -933,23 +886,13 @@ def _get_verts(
             for color in range(3):
                 partnum, col = prop_to_partnum_col[color_idxs[color]]
                 vertex_colors.numpy()[:, color] = vertex[partnum][:, col]
-            vertex_colors *= color_scale
-        if normal_idxs is not None:
-            vertex_normals = torch.empty(
-                size=(vertex_head.count, 3), dtype=torch.float32
-            )
-            for axis in range(3):
-                partnum, col = prop_to_partnum_col[normal_idxs[axis]]
-                vertex_normals.numpy()[:, axis] = vertex[partnum][:, col]
 
-    return verts, vertex_colors, vertex_normals
+    return verts, vertex_colors
 
 
 def _load_ply(
-    f, *, path_manager: PathManager
-) -> Tuple[
-    torch.Tensor, Optional[torch.Tensor], Optional[torch.Tensor], Optional[torch.Tensor]
-]:
+    f, *, path_manager: PathManager, return_vertex_colors: bool = False
+) -> Tuple[torch.Tensor, torch.Tensor, Optional[torch.Tensor]]:
     """
     Load the data from a .ply file.
 
@@ -960,16 +903,16 @@ def _load_ply(
             ply format, then a text stream is not supported.
             It is easiest to use a binary stream in all cases.
         path_manager: PathManager for loading if f is a str.
+        return_vertex_colors: whether to return vertex colors.
 
     Returns:
         verts: FloatTensor of shape (V, 3).
         faces: None or LongTensor of vertex indices, shape (F, 3).
-        vertex_colors: None or FloatTensor of shape (V, 3).
-        vertex_normals: None or FloatTensor of shape (V, 3).
+        vertex_colors: None or FloatTensor of shape (V, 3), only if requested
     """
     header, elements = _load_ply_raw(f, path_manager=path_manager)
 
-    verts, vertex_colors, vertex_normals = _get_verts(header, elements)
+    verts, vertex_colors = _get_verts(header, elements)
 
     face = elements.get("face", None)
     if face is not None:
@@ -1007,17 +950,16 @@ def _load_ply(
     if faces is not None:
         _check_faces_indices(faces, max_index=verts.shape[0])
 
-    return verts, faces, vertex_colors, vertex_normals
+    if return_vertex_colors:
+        return verts, faces, vertex_colors
+    return verts, faces, None
 
 
 def load_ply(
     f, *, path_manager: Optional[PathManager] = None
 ) -> Tuple[torch.Tensor, torch.Tensor]:
     """
-    Load the verts and faces from a .ply file.
-    Note that the preferred way to load data from such a file
-    is to use the IO.load_mesh and IO.load_pointcloud functions,
-    which can read more of the data.
+    Load the data from a .ply file.
 
     Example .ply file format:
 
@@ -1062,42 +1004,41 @@ def load_ply(
 
     if path_manager is None:
         path_manager = PathManager()
-    verts, faces, _, _ = _load_ply(f, path_manager=path_manager)
+    verts, faces, _ = _load_ply(f, path_manager=path_manager)
     if faces is None:
         faces = torch.zeros(0, 3, dtype=torch.int64)
 
     return verts, faces
 
 
-def _write_ply_header(
+def _save_ply(
     f,
     *,
     verts: torch.Tensor,
     faces: Optional[torch.LongTensor],
-    verts_normals: Optional[torch.Tensor],
-    verts_colors: Optional[torch.Tensor],
+    verts_normals: torch.Tensor,
+    verts_colors: torch.Tensor,
     ascii: bool,
-    colors_as_uint8: bool,
+    decimal_places: Optional[int] = None,
 ) -> None:
     """
-    Internal implementation for writing header when saving to a .ply file.
+    Internal implementation for saving 3D data to a .ply file.
 
     Args:
         f: File object to which the 3D data should be written.
         verts: FloatTensor of shape (V, 3) giving vertex coordinates.
         faces: LongTensor of shape (F, 3) giving faces.
         verts_normals: FloatTensor of shape (V, 3) giving vertex normals.
-        verts_colors: FloatTensor of shape (V, 3) giving vertex colors.
         ascii: (bool) whether to use the ascii ply format.
-        colors_as_uint8: Whether to save colors as numbers in the range
-                    [0, 255] instead of float32.
+        decimal_places: Number of decimal places for saving if ascii=True.
     """
     assert not len(verts) or (verts.dim() == 2 and verts.size(1) == 3)
-    assert faces is None or not len(faces) or (faces.dim() == 2 and faces.size(1) == 3)
-    assert verts_normals is None or (
+    if faces is not None:
+        assert not len(faces) or (faces.dim() == 2 and faces.size(1) == 3)
+    assert not len(verts_normals) or (
         verts_normals.dim() == 2 and verts_normals.size(1) == 3
     )
-    assert verts_colors is None or (
+    assert not len(verts_colors) or (
         verts_colors.dim() == 2 and verts_colors.size(1) == 3
     )
 
@@ -1111,93 +1052,33 @@ def _write_ply_header(
     f.write(b"property float x\n")
     f.write(b"property float y\n")
     f.write(b"property float z\n")
-    if verts_normals is not None:
+    if verts_normals.numel() > 0:
         f.write(b"property float nx\n")
         f.write(b"property float ny\n")
         f.write(b"property float nz\n")
-    if verts_colors is not None:
-        color_ply_type = b"uchar" if colors_as_uint8 else b"float"
-        for color in (b"red", b"green", b"blue"):
-            f.write(b"property " + color_ply_type + b" " + color + b"\n")
+    if verts_colors.numel() > 0:
+        f.write(b"property float red\n")
+        f.write(b"property float green\n")
+        f.write(b"property float blue\n")
     if len(verts) and faces is not None:
         f.write(f"element face {faces.shape[0]}\n".encode("ascii"))
         f.write(b"property list uchar int vertex_index\n")
     f.write(b"end_header\n")
 
-
-def _save_ply(
-    f,
-    *,
-    verts: torch.Tensor,
-    faces: Optional[torch.LongTensor],
-    verts_normals: Optional[torch.Tensor],
-    verts_colors: Optional[torch.Tensor],
-    ascii: bool,
-    decimal_places: Optional[int] = None,
-    colors_as_uint8: bool,
-) -> None:
-    """
-    Internal implementation for saving 3D data to a .ply file.
-
-    Args:
-        f: File object to which the 3D data should be written.
-        verts: FloatTensor of shape (V, 3) giving vertex coordinates.
-        faces: LongTensor of shape (F, 3) giving faces.
-        verts_normals: FloatTensor of shape (V, 3) giving vertex normals.
-        verts_colors: FloatTensor of shape (V, 3) giving vertex colors.
-        ascii: (bool) whether to use the ascii ply format.
-        decimal_places: Number of decimal places for saving if ascii=True.
-        colors_as_uint8: Whether to save colors as numbers in the range
-                    [0, 255] instead of float32.
-    """
-    _write_ply_header(
-        f,
-        verts=verts,
-        faces=faces,
-        verts_normals=verts_normals,
-        verts_colors=verts_colors,
-        ascii=ascii,
-        colors_as_uint8=colors_as_uint8,
-    )
-
     if not (len(verts)):
         warnings.warn("Empty 'verts' provided")
         return
 
-    color_np_type = np.ubyte if colors_as_uint8 else np.float32
-    verts_dtype = [("verts", np.float32, 3)]
-    if verts_normals is not None:
-        verts_dtype.append(("normals", np.float32, 3))
-    if verts_colors is not None:
-        verts_dtype.append(("colors", color_np_type, 3))
-
-    vert_data = np.zeros(verts.shape[0], dtype=verts_dtype)
-    vert_data["verts"] = verts.detach().cpu().numpy()
-    if verts_normals is not None:
-        vert_data["normals"] = verts_normals.detach().cpu().numpy()
-    if verts_colors is not None:
-        color_data = verts_colors.detach().cpu().numpy()
-        if colors_as_uint8:
-            vert_data["colors"] = np.rint(color_data * 255)
-        else:
-            vert_data["colors"] = color_data
-
+    # vert_data = torch.cat((verts, verts_normals, verts_colors), dim=1).to('cpu').detach().numpy().copy()
+    vert_data = torch.cat((verts, verts_normals), dim=1).to('cpu').detach().numpy().copy()
     if ascii:
         if decimal_places is None:
-            float_str = b"%f"
+            float_str = "%f"
         else:
-            float_str = b"%" + b".%df" % decimal_places
-        float_group_str = (float_str + b" ") * 3
-        formats = [float_group_str]
-        if verts_normals is not None:
-            formats.append(float_group_str)
-        if verts_colors is not None:
-            formats.append(b"%d %d %d " if colors_as_uint8 else float_group_str)
-        formats[-1] = formats[-1][:-1] + b"\n"
-        for line_data in vert_data:
-            for data, format in zip(line_data, formats):
-                f.write(format % tuple(data))
+            float_str = "%" + ".%df" % decimal_places
+        np.savetxt(f, vert_data, float_str)
     else:
+        assert vert_data.dtype == np.float32
         if isinstance(f, BytesIO):
             # tofile only works with real files, but is faster than this.
             f.write(vert_data.tobytes())
@@ -1205,7 +1086,7 @@ def _save_ply(
             vert_data.tofile(f)
 
     if faces is not None:
-        faces_array = faces.detach().cpu().numpy()
+        faces_array = faces.to('cpu').detach().numpy().copy()
 
         _check_faces_indices(faces, max_index=verts.shape[0])
 
@@ -1213,14 +1094,9 @@ def _save_ply(
             if ascii:
                 np.savetxt(f, faces_array, "3 %d %d %d")
             else:
-                faces_recs = np.zeros(
-                    len(faces_array),
-                    dtype=[("count", np.uint8), ("vertex_indices", np.uint32, 3)],
-                )
-                faces_recs["count"] = 3
-                faces_recs["vertex_indices"] = faces_array
-                faces_uints = faces_recs.view(np.uint8)
-
+                # rows are 13 bytes: a one-byte 3 followed by three four-byte face indices.
+                faces_uints = np.full((len(faces_array), 13), 3, dtype=np.uint8)
+                faces_uints[:, 1:] = faces_array.astype(np.uint32).view(np.uint8)
                 if isinstance(f, BytesIO):
                     f.write(faces_uints.tobytes())
                 else:
@@ -1247,7 +1123,14 @@ def save_ply(
         ascii: (bool) whether to use the ascii ply format.
         decimal_places: Number of decimal places for saving if ascii=True.
         path_manager: PathManager for interpreting f if it is a str.
+
     """
+
+    verts_normals = (
+        torch.tensor([], dtype=torch.float32, device=verts.device)
+        if verts_normals is None
+        else verts_normals
+    )
 
     if len(verts) and not (verts.dim() == 2 and verts.size(1) == 3):
         message = "Argument 'verts' should either be empty or of shape (num_verts, 3)."
@@ -1261,17 +1144,15 @@ def save_ply(
         message = "Argument 'faces' should either be empty or of shape (num_faces, 3)."
         raise ValueError(message)
 
-    if (
-        verts_normals is not None
-        and len(verts_normals)
-        and not (
-            verts_normals.dim() == 2
-            and verts_normals.size(1) == 3
-            and verts_normals.size(0) == verts.size(0)
-        )
+    if len(verts_normals) and not (
+        verts_normals.dim() == 2
+        and verts_normals.size(1) == 3
+        and verts_normals.size(0) == verts.size(0)
     ):
         message = "Argument 'verts_normals' should either be empty or of shape (num_verts, 3)."
         raise ValueError(message)
+
+    verts_colors = torch.FloatTensor([])
 
     if path_manager is None:
         path_manager = PathManager()
@@ -1281,20 +1162,19 @@ def save_ply(
             verts=verts,
             faces=faces,
             verts_normals=verts_normals,
-            verts_colors=None,
+            verts_colors=verts_colors,
             ascii=ascii,
             decimal_places=decimal_places,
-            colors_as_uint8=False,
         )
 
 
 class MeshPlyFormat(MeshFormatInterpreter):
-    def __init__(self) -> None:
+    def __init__(self):
         self.known_suffixes = (".ply",)
 
     def read(
         self,
-        path: PathOrStr,
+        path: Union[str, Path],
         include_textures: bool,
         device,
         path_manager: PathManager,
@@ -1303,86 +1183,43 @@ class MeshPlyFormat(MeshFormatInterpreter):
         if not endswith(path, self.known_suffixes):
             return None
 
-        verts, faces, verts_colors, verts_normals = _load_ply(
-            f=path, path_manager=path_manager
-        )
-        if faces is None:
-            faces = torch.zeros(0, 3, dtype=torch.int64)
-
-        texture = None
-        if include_textures and verts_colors is not None:
-            texture = TexturesVertex([verts_colors.to(device)])
-
-        if verts_normals is not None:
-            verts_normals = [verts_normals]
-        mesh = Meshes(
-            verts=[verts.to(device)],
-            faces=[faces.to(device)],
-            textures=texture,
-            verts_normals=verts_normals,
-        )
+        verts, faces = load_ply(f=path, path_manager=path_manager)
+        mesh = Meshes(verts=[verts.to(device)], faces=[faces.to(device)])
         return mesh
 
     def save(
         self,
         data: Meshes,
-        path: PathOrStr,
+        path: Union[str, Path],
         path_manager: PathManager,
         binary: Optional[bool],
         decimal_places: Optional[int] = None,
-        colors_as_uint8: bool = False,
         **kwargs,
     ) -> bool:
-        """
-        Extra optional args:
-            colors_as_uint8: (bool) Whether to save colors as numbers in the
-                        range [0, 255] instead of float32.
-        """
         if not endswith(path, self.known_suffixes):
             return False
 
+        # TODO: normals are not saved. We only want to save them if they already exist.
         verts = data.verts_list()[0]
         faces = data.faces_list()[0]
-
-        if data.has_verts_normals():
-            verts_normals = data.verts_normals_list()[0]
-        else:
-            verts_normals = None
-
-        if isinstance(data.textures, TexturesVertex):
-            mesh_verts_colors = data.textures.verts_features_list()[0]
-            n_colors = mesh_verts_colors.shape[1]
-            if n_colors == 3:
-                verts_colors = mesh_verts_colors
-            else:
-                warnings.warn(
-                    f"Texture will not be saved as it has {n_colors} colors, not 3."
-                )
-                verts_colors = None
-        else:
-            verts_colors = None
-
-        with _open_file(path, path_manager, "wb") as f:
-            _save_ply(
-                f=f,
-                verts=verts,
-                faces=faces,
-                verts_colors=verts_colors,
-                verts_normals=verts_normals,
-                ascii=binary is False,
-                decimal_places=decimal_places,
-                colors_as_uint8=colors_as_uint8,
-            )
+        save_ply(
+            f=path,
+            verts=verts,
+            faces=faces,
+            ascii=binary is False,
+            decimal_places=decimal_places,
+            path_manager=path_manager,
+        )
         return True
 
 
 class PointcloudPlyFormat(PointcloudFormatInterpreter):
-    def __init__(self) -> None:
+    def __init__(self):
         self.known_suffixes = (".ply",)
 
     def read(
         self,
-        path: PathOrStr,
+        path: Union[str, Path],
         device,
         path_manager: PathManager,
         **kwargs,
@@ -1390,47 +1227,38 @@ class PointcloudPlyFormat(PointcloudFormatInterpreter):
         if not endswith(path, self.known_suffixes):
             return None
 
-        verts, faces, features, normals = _load_ply(f=path, path_manager=path_manager)
+        verts, faces, features = _load_ply(
+            f=path, path_manager=path_manager, return_vertex_colors=True
+        )
         verts = verts.to(device)
-        if features is not None:
-            features = [features.to(device)]
-        if normals is not None:
-            normals = [normals.to(device)]
-
-        pointcloud = Pointclouds(points=[verts], features=features, normals=normals)
+        if features is None:
+            pointcloud = Pointclouds(points=[verts])
+        else:
+            pointcloud = Pointclouds(points=[verts], features=[features.to(device)])
         return pointcloud
 
     def save(
         self,
         data: Pointclouds,
-        path: PathOrStr,
+        path: Union[str, Path],
         path_manager: PathManager,
         binary: Optional[bool],
         decimal_places: Optional[int] = None,
-        colors_as_uint8: bool = False,
         **kwargs,
     ) -> bool:
-        """
-        Extra optional args:
-            colors_as_uint8: (bool) Whether to save colors as numbers in the
-                        range [0, 255] instead of float32.
-        """
         if not endswith(path, self.known_suffixes):
             return False
 
         points = data.points_list()[0]
-        features = data.features_packed()
-        normals = data.normals_packed()
-
+        features = data.features_list()[0]
         with _open_file(path, path_manager, "wb") as f:
             _save_ply(
                 f=f,
                 verts=points,
                 verts_colors=features,
-                verts_normals=normals,
+                verts_normals=torch.FloatTensor([]),
                 faces=None,
                 ascii=binary is False,
                 decimal_places=decimal_places,
-                colors_as_uint8=colors_as_uint8,
             )
         return True

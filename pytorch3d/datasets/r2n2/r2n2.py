@@ -1,8 +1,4 @@
-# Copyright (c) Facebook, Inc. and its affiliates.
-# All rights reserved.
-#
-# This source code is licensed under the BSD-style license found in the
-# LICENSE file in the root directory of this source tree.
+# Copyright (c) Facebook, Inc. and its affiliates. All rights reserved.
 
 import json
 import warnings
@@ -13,7 +9,6 @@ from typing import Dict, List, Optional
 import numpy as np
 import torch
 from PIL import Image
-from pytorch3d.common.types import Device
 from pytorch3d.datasets.shapenet_base import ShapeNetBase
 from pytorch3d.renderer import HardPhongShader
 from tabulate import tabulate
@@ -31,7 +26,7 @@ SYNSET_DICT_DIR = Path(__file__).resolve().parent
 MAX_CAMERA_DISTANCE = 1.75  # Constant from R2N2.
 VOXEL_SIZE = 128
 # Intrinsic matrix extracted from Blender. Taken from meshrcnn codebase:
-# https://github.com/facebookresearch/meshrcnn/blob/main/shapenet/utils/coords.py
+# https://github.com/facebookresearch/meshrcnn/blob/master/shapenet/utils/coords.py
 BLENDER_INTRINSIC = torch.tensor(
     [
         [2.1875, 0.0, 0.0, 0.0],
@@ -42,7 +37,7 @@ BLENDER_INTRINSIC = torch.tensor(
 )
 
 
-class R2N2(ShapeNetBase):  # pragma: no cover
+class R2N2(ShapeNetBase):
     """
     This class loads the R2N2 dataset from a given directory into a Dataset object.
     The R2N2 dataset contains 13 categories that are a subset of the ShapeNetCore v.1
@@ -64,7 +59,7 @@ class R2N2(ShapeNetBase):  # pragma: no cover
         voxels_rel_path: str = "ShapeNetVoxels",
         load_textures: bool = True,
         texture_resolution: int = 4,
-    ) -> None:
+    ):
         """
         Store each object's synset id and models id the given directories.
 
@@ -295,7 +290,7 @@ class R2N2(ShapeNetBase):  # pragma: no cover
 
             # Intrinsic matrix extracted from the Blender with slight modification to work with
             # PyTorch3D world space. Taken from meshrcnn codebase:
-            # https://github.com/facebookresearch/meshrcnn/blob/main/shapenet/utils/coords.py
+            # https://github.com/facebookresearch/meshrcnn/blob/master/shapenet/utils/coords.py
             K = torch.tensor(
                 [
                     [2.1875, 0.0, 0.0, 0.0],
@@ -376,7 +371,7 @@ class R2N2(ShapeNetBase):  # pragma: no cover
         idxs: Optional[List[int]] = None,
         view_idxs: Optional[List[int]] = None,
         shader_type=HardPhongShader,
-        device: Device = "cpu",
+        device="cpu",
         **kwargs
     ) -> torch.Tensor:
         """
@@ -399,7 +394,7 @@ class R2N2(ShapeNetBase):  # pragma: no cover
             idxs: List[int] of indices of models to be rendered in the dataset.
             shader_type: Shader to use for rendering. Examples include HardPhongShader
             (default), SoftPhongShader etc or any other type of valid Shader class.
-            device: Device (as str or torch.device) on which the tensors should be located.
+            device: torch.device on which the tensors should be located.
             **kwargs: Accepts any of the kwargs that the renderer supports and any of the
                 args that BlenderCamera supports.
 

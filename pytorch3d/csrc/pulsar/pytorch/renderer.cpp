@@ -1,11 +1,4 @@
-/*
- * Copyright (c) Facebook, Inc. and its affiliates.
- * All rights reserved.
- *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree.
- */
-
+// Copyright (c) Facebook, Inc. and its affiliates. All rights reserved.
 #include "./renderer.h"
 #include "../include/commands.h"
 #include "./camera.h"
@@ -1046,7 +1039,7 @@ Renderer::backward(
       at::optional<torch::Tensor>,
       at::optional<torch::Tensor>>
       ret;
-  if (mode == 1 || (!dif_pos && !dif_col && !dif_rad && !dif_cam && !dif_opy)) {
+  if (mode == 1 || (!dif_pos && !dif_col && !dif_rad && !dif_cam)) {
     return ret;
   }
   // Create the camera information.

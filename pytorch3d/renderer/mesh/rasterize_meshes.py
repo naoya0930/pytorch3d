@@ -1,15 +1,11 @@
-# Copyright (c) Facebook, Inc. and its affiliates.
-# All rights reserved.
-#
-# This source code is licensed under the BSD-style license found in the
-# LICENSE file in the root directory of this source tree.
+# Copyright (c) Facebook, Inc. and its affiliates. All rights reserved.
 
 
 from typing import List, Optional, Tuple, Union
 
 import numpy as np
 import torch
-from pytorch3d import _C
+from pytorch3d import _C  # pyre-fixme[21]: Could not find name `_C` in `pytorch3d`.
 
 from .clip import (
     ClipFrustum,
@@ -71,17 +67,14 @@ def rasterize_meshes(
             bin_size=0 uses naive rasterization; setting bin_size=None attempts to
             set it heuristically based on the shape of the input. This should not
             affect the output, but can affect the speed of the forward pass.
-        max_faces_per_bin: Only applicable when using coarse-to-fine rasterization
+        faces_per_bin: Only applicable when using coarse-to-fine rasterization
             (bin_size > 0); this is the maximum number of faces allowed within each
-            bin. This should not affect the output values, but can affect
+            bin. If more than this many faces actually fall into a bin, an error
+            will be raised. This should not affect the output values, but can affect
             the memory usage in the forward pass.
         perspective_correct: Bool, Whether to apply perspective correction when computing
             barycentric coordinates for pixels. This should be set to True if a perspective
             camera is used.
-        clip_barycentric_coords: Whether, after any perspective correction is applied
-            but before the depth is calculated (e.g. for z clipping),
-            to "correct" a location outside the face (i.e. with a negative
-            barycentric coordinate) to a position on the edge of the face.
         cull_backfaces: Bool, Whether to only rasterize mesh faces which are
             visible to the camera.  This assumes that vertices of
             front-facing triangles are ordered in an anti-clockwise
@@ -251,10 +244,7 @@ def rasterize_meshes(
         # original unclipped faces.  This may involve converting barycentric
         # coordinates
         outputs = convert_clipped_rasterization_to_original_faces(
-            pix_to_face,
-            barycentric_coords,
-            # pyre-fixme[61]: `clipped_faces` may not be initialized here.
-            clipped_faces,
+            pix_to_face, barycentric_coords, clipped_faces
         )
         pix_to_face, barycentric_coords = outputs
 
@@ -286,6 +276,7 @@ class _RasterizeFaceVerts(torch.autograd.Function):
     """
 
     @staticmethod
+    # pyre-fixme[14]: `forward` overrides method defined in `Function` inconsistently.
     # pyre-fixme[14]: `forward` overrides method defined in `Function` inconsistently.
     def forward(
         ctx,
@@ -411,7 +402,7 @@ def pix_to_non_square_ndc(i, S1, S2):
     return -offset + (ndc_range * i + offset) / S1
 
 
-def rasterize_meshes_python(  # noqa: C901
+def rasterize_meshes_python(
     meshes,
     image_size: Union[int, Tuple[int, int]] = 256,
     blur_radius: float = 0.0,
@@ -475,6 +466,7 @@ def rasterize_meshes_python(  # noqa: C901
     )
 
     # Calculate all face bounding boxes.
+    # pyre-fixme[16]: `Tuple` has no attribute `values`.
     x_mins = torch.min(faces_verts[:, :, 0], dim=1, keepdim=True).values
     x_maxs = torch.max(faces_verts[:, :, 0], dim=1, keepdim=True).values
     y_mins = torch.min(faces_verts[:, :, 1], dim=1, keepdim=True).values
@@ -617,10 +609,7 @@ def rasterize_meshes_python(  # noqa: C901
         # original unclipped faces.  This may involve converting barycentric
         # coordinates
         (face_idxs, bary_coords,) = convert_clipped_rasterization_to_original_faces(
-            face_idxs,
-            bary_coords,
-            # pyre-fixme[61]: `clipped_faces` may not be initialized here.
-            clipped_faces,
+            face_idxs, bary_coords, clipped_faces
         )
 
     return face_idxs, zbuf, bary_coords, pix_dists

@@ -1,8 +1,4 @@
-# Copyright (c) Facebook, Inc. and its affiliates.
-# All rights reserved.
-#
-# This source code is licensed under the BSD-style license found in the
-# LICENSE file in the root directory of this source tree.
+# Copyright (c) Facebook, Inc. and its affiliates. All rights reserved.
 
 
 from .clip import (
@@ -26,7 +22,7 @@ from .shader import (
 )
 from .shading import gouraud_shading, phong_shading
 from .textures import Textures  # DEPRECATED
-from .textures import TexturesAtlas, TexturesBase, TexturesUV, TexturesVertex
+from .textures import TexturesAtlas, TexturesUV, TexturesVertex
 
 
 __all__ = [k for k in globals().keys() if not k.startswith("_")]

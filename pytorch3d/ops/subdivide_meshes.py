@@ -1,8 +1,4 @@
-# Copyright (c) Facebook, Inc. and its affiliates.
-# All rights reserved.
-#
-# This source code is licensed under the BSD-style license found in the
-# LICENSE file in the root directory of this source tree.
+# Copyright (c) Facebook, Inc. and its affiliates. All rights reserved.
 
 
 import torch
@@ -26,7 +22,7 @@ class SubdivideMeshes(nn.Module):
     but different vertex positions.
     """
 
-    def __init__(self, meshes=None) -> None:
+    def __init__(self, meshes=None):
         """
         Args:
             meshes: Meshes object or None. If a meshes object is provided,

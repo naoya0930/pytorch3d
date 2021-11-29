@@ -1,8 +1,4 @@
-# Copyright (c) Facebook, Inc. and its affiliates.
-# All rights reserved.
-#
-# This source code is licensed under the BSD-style license found in the
-# LICENSE file in the root directory of this source tree.
+# Copyright (c) Facebook, Inc. and its affiliates. All rights reserved.
 
 import unittest
 
@@ -159,8 +155,8 @@ class TestRenderMeshesMultiGPU(TestCaseMixin, unittest.TestCase):
         verts = ico_sphere(3).verts_padded()
         texs = verts.new_ones(verts.shape)
         model = Model()
-        model.to(GPU_LIST[0])
         model = nn.DataParallel(model, device_ids=GPU_LIST)
+        model.to(f"cuda:{model.device_ids[0]}")
 
         # Test a few iterations
         for _ in range(100):

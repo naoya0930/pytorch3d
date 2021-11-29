@@ -1,9 +1,4 @@
-# Copyright (c) Facebook, Inc. and its affiliates.
-# All rights reserved.
-#
-# This source code is licensed under the BSD-style license found in the
-# LICENSE file in the root directory of this source tree.
-
+# Copyright (c) Facebook, Inc. and its affiliates. All rights reserved.
 from typing import List, Optional, Tuple
 
 import torch
@@ -67,9 +62,8 @@ class RadianceFieldRenderer(torch.nn.Module):
         n_hidden_neurons_xyz: int = 256,
         n_hidden_neurons_dir: int = 128,
         n_layers_xyz: int = 8,
-        append_xyz: Tuple[int] = (5,),
+        append_xyz: List[int] = (5,),
         density_noise_std: float = 0.0,
-        visualization: bool = False,
     ):
         """
         Args:
@@ -108,7 +102,6 @@ class RadianceFieldRenderer(torch.nn.Module):
             density_noise_std: The standard deviation of the random normal noise
                 added to the output of the occupancy MLP.
                 Active only when `self.training==True`.
-            visualization: whether to store extra output for visualization.
         """
 
         super().__init__()
@@ -166,7 +159,6 @@ class RadianceFieldRenderer(torch.nn.Module):
         self._density_noise_std = density_noise_std
         self._chunk_size_test = chunk_size_test
         self._image_size = image_size
-        self.visualization = visualization
 
     def precache_rays(
         self,
@@ -256,15 +248,16 @@ class RadianceFieldRenderer(torch.nn.Module):
             else:
                 raise ValueError(f"No such rendering pass {renderer_pass}")
 
-        out = {"rgb_fine": rgb_fine, "rgb_coarse": rgb_coarse, "rgb_gt": rgb_gt}
-        if self.visualization:
+        return {
+            "rgb_fine": rgb_fine,
+            "rgb_coarse": rgb_coarse,
+            "rgb_gt": rgb_gt,
             # Store the coarse rays/weights only for visualization purposes.
-            out["coarse_ray_bundle"] = type(coarse_ray_bundle)(
+            "coarse_ray_bundle": type(coarse_ray_bundle)(
                 *[v.detach().cpu() for k, v in coarse_ray_bundle._asdict().items()]
-            )
-            out["coarse_weights"] = coarse_weights.detach().cpu()
-
-        return out
+            ),
+            "coarse_weights": coarse_weights.detach().cpu(),
+        }
 
     def forward(
         self,

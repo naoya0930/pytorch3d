@@ -1,10 +1,4 @@
-/*
- * Copyright (c) Facebook, Inc. and its affiliates.
- * All rights reserved.
- *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree.
- */
+// Copyright (c) Facebook, Inc. and its affiliates. All rights reserved.
 
 #include <float.h>
 #include <math.h>
@@ -177,7 +171,7 @@ __device__ inline float3 BarycentricPerspectiveCorrectionForward(
   const float w0_top = bary.x * z1 * z2;
   const float w1_top = z0 * bary.y * z2;
   const float w2_top = z0 * z1 * bary.z;
-  const float denom = fmaxf(w0_top + w1_top + w2_top, kEpsilon);
+  const float denom = w0_top + w1_top + w2_top;
   const float w0 = w0_top / denom;
   const float w1 = w1_top / denom;
   const float w2 = w2_top / denom;
@@ -208,7 +202,7 @@ BarycentricPerspectiveCorrectionBackward(
   const float w0_top = bary.x * z1 * z2;
   const float w1_top = z0 * bary.y * z2;
   const float w2_top = z0 * z1 * bary.z;
-  const float denom = fmaxf(w0_top + w1_top + w2_top, kEpsilon);
+  const float denom = w0_top + w1_top + w2_top;
 
   // Now do backward pass
   const float grad_denom_top =
@@ -467,27 +461,6 @@ PointTriangleDistanceBackward(
 //                          vec3 utils                           //
 // ************************************************************* //
 
-// Computes the area of a triangle (v0, v1, v2).
-//
-// Args:
-//     v0, v1, v2: vec3 coordinates of the triangle vertices
-//
-// Returns
-//     area: float: The area of the triangle
-//
-__device__ inline float
-AreaOfTriangle(const float3& v0, const float3& v1, const float3& v2) {
-  float3 p0 = v1 - v0;
-  float3 p1 = v2 - v0;
-
-  // compute the hypotenus of the scross product (p0 x p1)
-  float dd = hypot(
-      p0.y * p1.z - p0.z * p1.y,
-      hypot(p0.z * p1.x - p0.x * p1.z, p0.x * p1.y - p0.y * p1.x));
-
-  return dd / 2.0;
-}
-
 // Computes the barycentric coordinates of a point p relative
 // to a triangle (v0, v1, v2), i.e. p = w0 * v0 + w1 * v1 + w2 * v2
 // s.t. w0 + w1 + w2 = 1.0
@@ -530,7 +503,6 @@ __device__ inline float3 BarycentricCoords3Forward(
 // Checks whether the point p is inside the triangle (v0, v1, v2).
 // A point is inside the triangle, if all barycentric coordinates
 // wrt the triangle are >= 0 & <= 1.
-// If the triangle is degenerate, aka line or point, then return False.
 //
 // NOTE that this function assumes that p lives on the space spanned
 // by (v0, v1, v2).
@@ -549,16 +521,11 @@ __device__ inline bool IsInsideTriangle(
     const float3& v0,
     const float3& v1,
     const float3& v2) {
-  bool inside;
-  if (AreaOfTriangle(v0, v1, v2) < 1e-5) {
-    inside = 0;
-  } else {
-    float3 bary = BarycentricCoords3Forward(p, v0, v1, v2);
-    bool x_in = 0.0f <= bary.x && bary.x <= 1.0f;
-    bool y_in = 0.0f <= bary.y && bary.y <= 1.0f;
-    bool z_in = 0.0f <= bary.z && bary.z <= 1.0f;
-    inside = x_in && y_in && z_in;
-  }
+  float3 bary = BarycentricCoords3Forward(p, v0, v1, v2);
+  bool x_in = 0.0f <= bary.x && bary.x <= 1.0f;
+  bool y_in = 0.0f <= bary.y && bary.y <= 1.0f;
+  bool z_in = 0.0f <= bary.z && bary.z <= 1.0f;
+  bool inside = x_in && y_in && z_in;
   return inside;
 }
 

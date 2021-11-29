@@ -1,10 +1,6 @@
 /**
- * Copyright (c) Facebook, Inc. and its affiliates.
- * All rights reserved.
- *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree.
- */
+ * Copyright (c) 2017-present, Facebook, Inc.
+**/
 
 const React = require('react');
 
@@ -135,7 +131,7 @@ loss_chamfer, _ = chamfer_distance(sample_sphere, sample_test)
         <Container>
           <ol>
             <li>
-              <strong>Install PyTorch3D  </strong> (following the instructions <a href="https://github.com/facebookresearch/pytorch3d/blob/main/INSTALL.md">here</a>)
+              <strong>Install PyTorch3D  </strong> (following the instructions <a href="https://github.com/facebookresearch/pytorch3d/blob/master/INSTALL.md">here</a>)
             </li>
             <li>
               <strong>Try a few 3D operators  </strong>

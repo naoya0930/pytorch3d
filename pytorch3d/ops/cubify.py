@@ -1,8 +1,4 @@
-# Copyright (c) Facebook, Inc. and its affiliates.
-# All rights reserved.
-#
-# This source code is licensed under the BSD-style license found in the
-# LICENSE file in the root directory of this source tree.
+# Copyright (c) Facebook, Inc. and its affiliates. All rights reserved.
 
 
 import torch
@@ -48,6 +44,8 @@ def ravel_index(idx, dims) -> torch.Tensor:
     return linind
 
 
+# pyre-fixme[56]: Decorator `torch.no_grad(...)` could not be called, because its
+#  type `no_grad` is not callable.
 @torch.no_grad()
 def cubify(voxels, thresh, device=None, align: str = "topleft") -> Meshes:
     r"""

@@ -1,8 +1,4 @@
-# Copyright (c) Facebook, Inc. and its affiliates.
-# All rights reserved.
-#
-# This source code is licensed under the BSD-style license found in the
-# LICENSE file in the root directory of this source tree.
+# Copyright (c) Facebook, Inc. and its affiliates. All rights reserved.
 
 from typing import Dict, List, Optional, Tuple
 
@@ -15,7 +11,7 @@ EPS = 0.00001
 
 
 class Cube:
-    def __init__(self, bfl_vertex: Tuple[int, int, int], spacing: int = 1) -> None:
+    def __init__(self, bfl_vertex: Tuple[int, int, int], spacing: int = 1):
         """
         Initializes a cube given the bottom front left vertex coordinate
         and the cube spacing
@@ -117,6 +113,7 @@ def marching_cubes_naive(
     volume_data_batch = volume_data_batch.detach().cpu()
     batched_verts, batched_faces = [], []
     D, H, W = volume_data_batch.shape[1:]
+    # pyre-ignore [16]
     volume_size_xyz = volume_data_batch.new_tensor([W, H, D])[None]
 
     if return_local_coords:

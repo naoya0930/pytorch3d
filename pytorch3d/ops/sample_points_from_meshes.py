@@ -1,8 +1,4 @@
-# Copyright (c) Facebook, Inc. and its affiliates.
-# All rights reserved.
-#
-# This source code is licensed under the BSD-style license found in the
-# LICENSE file in the root directory of this source tree.
+# Copyright (c) Facebook, Inc. and its affiliates. All rights reserved.
 
 
 """
@@ -137,20 +133,16 @@ def sample_points_from_meshes(
     # return
     # TODO(gkioxari) consider returning a Pointclouds instance [breaking]
     if return_normals and return_textures:
-        # pyre-fixme[61]: `normals` may not be initialized here.
-        # pyre-fixme[61]: `textures` may not be initialized here.
         return samples, normals, textures
     if return_normals:  # return_textures is False
-        # pyre-fixme[61]: `normals` may not be initialized here.
         return samples, normals
     if return_textures:  # return_normals is False
-        # pyre-fixme[61]: `textures` may not be initialized here.
         return samples, textures
     return samples
 
 
 def _rand_barycentric_coords(
-    size1, size2, dtype: torch.dtype, device: torch.device
+    size1, size2, dtype, device
 ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """
     Helper function to generate random barycentric coordinates which are uniformly

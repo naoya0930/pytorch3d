@@ -1,9 +1,4 @@
-# Copyright (c) Facebook, Inc. and its affiliates.
-# All rights reserved.
-#
-# This source code is licensed under the BSD-style license found in the
-# LICENSE file in the root directory of this source tree.
-
+# Copyright (c) Facebook, Inc. and its affiliates. All rights reserved.
 import unittest
 
 import numpy as np
@@ -159,12 +154,8 @@ class TestRenderImplicit(TestCaseMixin, unittest.TestCase):
             with self.assertRaises(ValueError):
                 renderer(cameras=cameras, volumetric_function=bad_volumetric_function)
 
-    def test_compare_with_meshes_renderer(self):
-        self._compare_with_meshes_renderer(image_size=(200, 100))
-        self._compare_with_meshes_renderer(image_size=(100, 200))
-
-    def _compare_with_meshes_renderer(
-        self, image_size, batch_size=11, sphere_diameter=0.6
+    def test_compare_with_meshes_renderer(
+        self, batch_size=11, image_size=100, sphere_diameter=0.6
     ):
         """
         Generate a spherical RGB volumetric function and its corresponding mesh
@@ -173,7 +164,9 @@ class TestRenderImplicit(TestCaseMixin, unittest.TestCase):
         """
 
         # generate NDC camera extrinsics and intrinsics
-        cameras = init_cameras(batch_size, image_size=image_size, ndc=True)
+        cameras = init_cameras(
+            batch_size, image_size=[image_size, image_size], ndc=True
+        )
 
         # get rand offset of the volume
         sphere_centroid = torch.randn(batch_size, 3, device=cameras.device) * 0.1
@@ -181,8 +174,8 @@ class TestRenderImplicit(TestCaseMixin, unittest.TestCase):
 
         # init the grid raysampler with the ndc grid
         raysampler = NDCGridRaysampler(
-            image_width=image_size[1],
-            image_height=image_size[0],
+            image_width=image_size,
+            image_height=image_size,
             n_pts_per_ray=256,
             min_depth=0.1,
             max_depth=2.0,
@@ -338,11 +331,9 @@ class TestRenderImplicit(TestCaseMixin, unittest.TestCase):
         self.assertClose(mu_diff, torch.zeros_like(mu_diff), atol=5e-2)
         self.assertClose(std_diff, torch.zeros_like(std_diff), atol=6e-2)
 
-    def test_rotating_gif(self):
-        self._rotating_gif(image_size=(200, 100))
-        self._rotating_gif(image_size=(100, 200))
-
-    def _rotating_gif(self, image_size, n_frames=50, fps=15, sphere_diameter=0.5):
+    def test_rotating_gif(
+        self, n_frames=50, fps=15, image_size=(100, 100), sphere_diameter=0.5
+    ):
         """
         Render a gif animation of a rotating sphere (runs only if `DEBUG==True`).
         """

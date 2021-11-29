@@ -1,8 +1,4 @@
-# Copyright (c) Facebook, Inc. and its affiliates.
-# All rights reserved.
-#
-# This source code is licensed under the BSD-style license found in the
-# LICENSE file in the root directory of this source tree.
+# Copyright (c) Facebook, Inc. and its affiliates. All rights reserved.
 
 
 """
@@ -10,7 +6,6 @@ Sanity checks for output images from the renderer.
 """
 import os
 import unittest
-from collections import namedtuple
 
 import numpy as np
 import torch
@@ -29,7 +24,7 @@ from pytorch3d.renderer.cameras import (
     PerspectiveCameras,
     look_at_view_transform,
 )
-from pytorch3d.renderer.lighting import AmbientLights, PointLights
+from pytorch3d.renderer.lighting import PointLights
 from pytorch3d.renderer.materials import Materials
 from pytorch3d.renderer.mesh import TexturesAtlas, TexturesUV, TexturesVertex
 from pytorch3d.renderer.mesh.rasterizer import MeshRasterizer, RasterizationSettings
@@ -57,8 +52,6 @@ from pytorch3d.utils.torus import torus
 DEBUG = False
 DATA_DIR = get_tests_dir() / "data"
 TUTORIAL_DATA_DIR = get_pytorch3d_dir() / "docs/tutorials/data"
-
-ShaderTest = namedtuple("ShaderTest", ["shader", "reference_name", "debug_name"])
 
 
 class TestRenderMeshes(TestCaseMixin, unittest.TestCase):
@@ -114,13 +107,13 @@ class TestRenderMeshes(TestCaseMixin, unittest.TestCase):
             blend_params = BlendParams(1e-4, 1e-4, (0, 0, 0))
 
             # Test several shaders
-            shader_tests = [
-                ShaderTest(HardPhongShader, "phong", "hard_phong"),
-                ShaderTest(HardGouraudShader, "gouraud", "hard_gouraud"),
-                ShaderTest(HardFlatShader, "flat", "hard_flat"),
-            ]
-            for test in shader_tests:
-                shader = test.shader(
+            shaders = {
+                "phong": HardPhongShader,
+                "gouraud": HardGouraudShader,
+                "flat": HardFlatShader,
+            }
+            for (name, shader_init) in shaders.items():
+                shader = shader_init(
                     lights=lights,
                     cameras=cameras,
                     materials=materials,
@@ -132,17 +125,13 @@ class TestRenderMeshes(TestCaseMixin, unittest.TestCase):
                     )
                     images, fragments = renderer(sphere_mesh)
                     self.assertClose(fragments.zbuf, rasterizer(sphere_mesh).zbuf)
-                    # Check the alpha channel is the mask
-                    self.assertClose(
-                        images[..., -1], (fragments.pix_to_face[..., 0] >= 0).float()
-                    )
                 else:
                     renderer = MeshRenderer(rasterizer=rasterizer, shader=shader)
                     images = renderer(sphere_mesh)
 
                 rgb = images[0, ..., :3].squeeze().cpu()
                 filename = "simple_sphere_light_%s%s%s.png" % (
-                    test.reference_name,
+                    name,
                     postfix,
                     cam_type.__name__,
                 )
@@ -151,12 +140,7 @@ class TestRenderMeshes(TestCaseMixin, unittest.TestCase):
                 self.assertClose(rgb, image_ref, atol=0.05)
 
                 if DEBUG:
-                    debug_filename = "simple_sphere_light_%s%s%s.png" % (
-                        test.debug_name,
-                        postfix,
-                        cam_type.__name__,
-                    )
-                    filename = "DEBUG_%s" % debug_filename
+                    filename = "DEBUG_%s" % filename
                     Image.fromarray((rgb.numpy() * 255).astype(np.uint8)).save(
                         DATA_DIR / filename
                     )
@@ -180,10 +164,6 @@ class TestRenderMeshes(TestCaseMixin, unittest.TestCase):
                 images, fragments = phong_renderer(sphere_mesh, lights=lights)
                 self.assertClose(
                     fragments.zbuf, rasterizer(sphere_mesh, lights=lights).zbuf
-                )
-                # Check the alpha channel is the mask
-                self.assertClose(
-                    images[..., -1], (fragments.pix_to_face[..., 0] >= 0).float()
                 )
             else:
                 phong_renderer = MeshRenderer(
@@ -255,20 +235,9 @@ class TestRenderMeshes(TestCaseMixin, unittest.TestCase):
                 device=device,
                 R=R,
                 T=T,
-                principal_point=(
-                    (
-                        (512.0 - 1.0) / 2.0,
-                        (512.0 - 1.0) / 2.0,
-                    ),
-                ),
-                focal_length=(
-                    (
-                        (512.0 - 1.0) / 2.0,
-                        (512.0 - 1.0) / 2.0,
-                    ),
-                ),
+                principal_point=((256.0, 256.0),),
+                focal_length=((256.0, 256.0),),
                 image_size=((512, 512),),
-                in_ndc=False,
             )
             rasterizer = MeshRasterizer(
                 cameras=cameras, raster_settings=raster_settings
@@ -292,8 +261,7 @@ class TestRenderMeshes(TestCaseMixin, unittest.TestCase):
     def test_simple_sphere_batched(self):
         """
         Test a mesh with vertex textures can be extended to form a batch, and
-        is rendered correctly with Phong, Gouraud and Flat Shaders with batched
-        lighting and hard and soft blending.
+        is rendered correctly with Phong, Gouraud and Flat Shaders.
         """
         batch_size = 5
         device = torch.device("cuda:0")
@@ -315,28 +283,24 @@ class TestRenderMeshes(TestCaseMixin, unittest.TestCase):
         R, T = look_at_view_transform(dist, elev, azim)
         cameras = FoVPerspectiveCameras(device=device, R=R, T=T)
         raster_settings = RasterizationSettings(
-            image_size=512, blur_radius=0.0, faces_per_pixel=4
+            image_size=512, blur_radius=0.0, faces_per_pixel=1
         )
 
         # Init shader settings
         materials = Materials(device=device)
-        lights_location = torch.tensor([0.0, 0.0, +2.0], device=device)
-        lights_location = lights_location[None].expand(batch_size, -1)
-        lights = PointLights(device=device, location=lights_location)
+        lights = PointLights(device=device)
+        lights.location = torch.tensor([0.0, 0.0, +2.0], device=device)[None]
         blend_params = BlendParams(1e-4, 1e-4, (0, 0, 0))
 
         # Init renderer
         rasterizer = MeshRasterizer(cameras=cameras, raster_settings=raster_settings)
-        shader_tests = [
-            ShaderTest(HardPhongShader, "phong", "hard_phong"),
-            ShaderTest(SoftPhongShader, "phong", "soft_phong"),
-            ShaderTest(HardGouraudShader, "gouraud", "hard_gouraud"),
-            ShaderTest(HardFlatShader, "flat", "hard_flat"),
-        ]
-        for test in shader_tests:
-            reference_name = test.reference_name
-            debug_name = test.debug_name
-            shader = test.shader(
+        shaders = {
+            "phong": HardPhongShader,
+            "gouraud": HardGouraudShader,
+            "flat": HardFlatShader,
+        }
+        for (name, shader_init) in shaders.items():
+            shader = shader_init(
                 lights=lights,
                 cameras=cameras,
                 materials=materials,
@@ -345,15 +309,14 @@ class TestRenderMeshes(TestCaseMixin, unittest.TestCase):
             renderer = MeshRenderer(rasterizer=rasterizer, shader=shader)
             images = renderer(sphere_meshes)
             image_ref = load_rgb_image(
-                "test_simple_sphere_light_%s_%s.png"
-                % (reference_name, type(cameras).__name__),
+                "test_simple_sphere_light_%s_%s.png" % (name, type(cameras).__name__),
                 DATA_DIR,
             )
             for i in range(batch_size):
                 rgb = images[i, ..., :3].squeeze().cpu()
                 if i == 0 and DEBUG:
                     filename = "DEBUG_simple_sphere_batched_%s_%s.png" % (
-                        debug_name,
+                        name,
                         type(cameras).__name__,
                     )
                     Image.fromarray((rgb.numpy() * 255).astype(np.uint8)).save(
@@ -663,7 +626,12 @@ class TestRenderMeshes(TestCaseMixin, unittest.TestCase):
             image_size=256, blur_radius=0.0, faces_per_pixel=1
         )
 
-        lights = AmbientLights(device=device)
+        lights = PointLights(
+            device=device,
+            ambient_color=((1.0, 1.0, 1.0),),
+            diffuse_color=((0.0, 0.0, 0.0),),
+            specular_color=((0.0, 0.0, 0.0),),
+        )
         blend_params = BlendParams(
             sigma=1e-1,
             gamma=1e-4,
@@ -684,9 +652,6 @@ class TestRenderMeshes(TestCaseMixin, unittest.TestCase):
         verts_shifted2 = verts.clone()
         verts_shifted2 *= 0.5
         verts_shifted2[:, 1] -= 7
-        verts_shifted3 = verts.clone()
-        verts_shifted3 *= 0.5
-        verts_shifted3[:, 1] -= 700
 
         [faces] = plain_torus.faces_list()
         nocolor = torch.zeros((100, 100), device=device)
@@ -732,11 +697,7 @@ class TestRenderMeshes(TestCaseMixin, unittest.TestCase):
             mesh1 = Meshes(verts=[verts], faces=[faces], textures=textures1)
             mesh2 = Meshes(verts=[verts_shifted1], faces=[faces], textures=textures2)
             mesh3 = Meshes(verts=[verts_shifted2], faces=[faces], textures=textures3)
-            # mesh4 is like mesh1 but outside the field of view. It is here to test
-            # that having another texture with the same map doesn't produce
-            # two copies in the joined map.
-            mesh4 = Meshes(verts=[verts_shifted3], faces=[faces], textures=textures1)
-            mesh = join_meshes_as_scene([mesh1, mesh2, mesh3, mesh4])
+            mesh = join_meshes_as_scene([mesh1, mesh2, mesh3])
 
             output = renderer(mesh)[0, ..., :3].cpu()
             output1 = renderer(mesh1)[0, ..., :3].cpu()
@@ -753,7 +714,7 @@ class TestRenderMeshes(TestCaseMixin, unittest.TestCase):
                 Image.fromarray((output.numpy() * 255).astype(np.uint8)).save(
                     DATA_DIR / f"test_joinuvs{i}_final_.png"
                 )
-                Image.fromarray((merged.numpy() * 255).astype(np.uint8)).save(
+                Image.fromarray((output.numpy() * 255).astype(np.uint8)).save(
                     DATA_DIR / f"test_joinuvs{i}_merged.png"
                 )
 
@@ -782,40 +743,9 @@ class TestRenderMeshes(TestCaseMixin, unittest.TestCase):
                     )
                 ).save(DATA_DIR / f"test_joinuvs{i}_map3.png")
 
-            self.assertClose(output, merged)
-            self.assertClose(output, image_ref, atol=0.005)
+            self.assertClose(output, merged, atol=0.015)
+            self.assertClose(output, image_ref, atol=0.05)
             self.assertClose(mesh.textures.maps_padded()[0].cpu(), map_ref, atol=0.05)
-
-    def test_join_uvs_simple(self):
-        # Example from issue #826
-        a = TexturesUV(
-            maps=torch.full((1, 4000, 4000, 3), 0.8),
-            faces_uvs=torch.arange(300).reshape(1, 100, 3),
-            verts_uvs=torch.rand(1, 300, 2) * 0.4 + 0.1,
-        )
-        b = TexturesUV(
-            maps=torch.full((1, 2000, 2000, 3), 0.7),
-            faces_uvs=torch.arange(150).reshape(1, 50, 3),
-            verts_uvs=torch.rand(1, 150, 2) * 0.2 + 0.3,
-        )
-        c = a.join_batch([b]).join_scene()
-
-        color = c.faces_verts_textures_packed()
-        color1 = color[:100, :, 0].flatten()
-        color2 = color[100:, :, 0].flatten()
-        expect1 = color1.new_tensor(0.8)
-        expect2 = color2.new_tensor(0.7)
-        self.assertClose(color1.min(), expect1)
-        self.assertClose(color1.max(), expect1)
-        self.assertClose(color2.min(), expect2)
-        self.assertClose(color2.max(), expect2)
-
-        if DEBUG:
-            from pytorch3d.vis.texture_vis import texturesuv_image_PIL as PI
-
-            PI(a, radius=5).save(DATA_DIR / "test_join_uvs_simple_a.png")
-            PI(b, radius=5).save(DATA_DIR / "test_join_uvs_simple_b.png")
-            PI(c, radius=5).save(DATA_DIR / "test_join_uvs_simple_c.png")
 
     def test_join_verts(self):
         """Meshes with TexturesVertex joined into a scene"""
@@ -843,7 +773,12 @@ class TestRenderMeshes(TestCaseMixin, unittest.TestCase):
             image_size=256, blur_radius=0.0, faces_per_pixel=1
         )
 
-        lights = AmbientLights(device=device)
+        lights = PointLights(
+            device=device,
+            ambient_color=((1.0, 1.0, 1.0),),
+            diffuse_color=((0.0, 0.0, 0.0),),
+            specular_color=((0.0, 0.0, 0.0),),
+        )
         blend_params = BlendParams(
             sigma=1e-1,
             gamma=1e-4,
@@ -921,7 +856,12 @@ class TestRenderMeshes(TestCaseMixin, unittest.TestCase):
             perspective_correct=False,
         )
 
-        lights = AmbientLights(device=device)
+        lights = PointLights(
+            device=device,
+            ambient_color=((1.0, 1.0, 1.0),),
+            diffuse_color=((0.0, 0.0, 0.0),),
+            specular_color=((0.0, 0.0, 0.0),),
+        )
         blend_params = BlendParams(
             sigma=1e-1,
             gamma=1e-4,
@@ -1176,55 +1116,4 @@ class TestRenderMeshes(TestCaseMixin, unittest.TestCase):
                     DATA_DIR / ("DEBUG_" + filename)
                 )
 
-            self.assertClose(rgb, image_ref, atol=0.05)
-
-    def test_cameras_kwarg(self):
-        """
-        Test that when cameras are passed in as a kwarg the rendering
-        works as expected
-        """
-        device = torch.device("cuda:0")
-
-        # Init mesh
-        sphere_mesh = ico_sphere(5, device)
-        verts_padded = sphere_mesh.verts_padded()
-        faces_padded = sphere_mesh.faces_padded()
-        feats = torch.ones_like(verts_padded, device=device)
-        textures = TexturesVertex(verts_features=feats)
-        sphere_mesh = Meshes(verts=verts_padded, faces=faces_padded, textures=textures)
-
-        # No elevation or azimuth rotation
-        R, T = look_at_view_transform(2.7, 0.0, 0.0)
-        for cam_type in (
-            FoVPerspectiveCameras,
-            FoVOrthographicCameras,
-            PerspectiveCameras,
-            OrthographicCameras,
-        ):
-            cameras = cam_type(device=device, R=R, T=T)
-
-            # Init shader settings
-            materials = Materials(device=device)
-            lights = PointLights(device=device)
-            lights.location = torch.tensor([0.0, 0.0, +2.0], device=device)[None]
-
-            raster_settings = RasterizationSettings(
-                image_size=512, blur_radius=0.0, faces_per_pixel=1
-            )
-            rasterizer = MeshRasterizer(raster_settings=raster_settings)
-            blend_params = BlendParams(1e-4, 1e-4, (0, 0, 0))
-
-            shader = HardPhongShader(
-                lights=lights,
-                materials=materials,
-                blend_params=blend_params,
-            )
-            renderer = MeshRenderer(rasterizer=rasterizer, shader=shader)
-
-            # Cameras can be passed into the renderer in the forward pass
-            images = renderer(sphere_mesh, cameras=cameras)
-            rgb = images.squeeze()[..., :3].cpu().numpy()
-            image_ref = load_rgb_image(
-                "test_simple_sphere_light_phong_%s.png" % cam_type.__name__, DATA_DIR
-            )
             self.assertClose(rgb, image_ref, atol=0.05)

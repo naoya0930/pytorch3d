@@ -1,8 +1,4 @@
-# Copyright (c) Facebook, Inc. and its affiliates.
-# All rights reserved.
-#
-# This source code is licensed under the BSD-style license found in the
-# LICENSE file in the root directory of this source tree.
+# Copyright (c) Facebook, Inc. and its affiliates. All rights reserved.
 
 from typing import Any, List, Optional, Tuple
 
@@ -84,7 +80,7 @@ class ClippedFaces:
         barycentric_conversion: Optional[torch.Tensor] = None,
         faces_clipped_to_conversion_idx: Optional[torch.Tensor] = None,
         clipped_faces_neighbor_idx: Optional[torch.Tensor] = None,
-    ) -> None:
+    ):
         self.face_verts = face_verts
         self.mesh_to_face_first_idx = mesh_to_face_first_idx
         self.num_faces_per_mesh = num_faces_per_mesh
@@ -139,7 +135,7 @@ class ClipFrustum:
         perspective_correct: bool = False,
         cull: bool = True,
         z_clip_value: Optional[float] = None,
-    ) -> None:
+    ):
         self.left = left
         self.right = right
         self.top = top
@@ -376,7 +372,7 @@ def clip_faces(
         # (F) dim tensor containing the number of clipped vertices in each triangle
         faces_num_clipped_verts = faces_clipped_verts.sum(1)
     else:
-        faces_num_clipped_verts = torch.zeros([F], device=device)
+        faces_num_clipped_verts = torch.zeros([F, 3], device=device)
 
     # If no triangles need to be clipped or culled, avoid unnecessary computation
     # and return early
@@ -427,6 +423,7 @@ def clip_faces(
     # during rasterization anyway).
     faces_delta_cum = faces_delta.cumsum(0) - faces_delta
     delta = 1 + case4_unclipped.int() - case2_unclipped.int()
+    # pyre-ignore[16]
     faces_unclipped_to_clipped_idx = delta.cumsum(0) - delta
 
     ###########################################
@@ -641,11 +638,8 @@ def convert_clipped_rasterization_to_original_faces(
     """
     faces_clipped_to_unclipped_idx = clipped_faces.faces_clipped_to_unclipped_idx
 
-    # If no clipping then return inputs
-    if (
-        faces_clipped_to_unclipped_idx is None
-        or faces_clipped_to_unclipped_idx.numel() == 0
-    ):
+    # If no clipping or culling then return inputs
+    if faces_clipped_to_unclipped_idx is None:
         return pix_to_face_clipped, bary_coords_clipped
 
     device = pix_to_face_clipped.device
